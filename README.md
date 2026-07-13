@@ -30,9 +30,32 @@ O CLI e a biblioteca vivem no mesmo repositório: `src/` é o código, e `skills
 `agents/`, `commands/` e `hooks/` são o conteúdo distribuído. Publicar uma skill nova é
 um commit — não há índice, CI nem `npm publish`.
 
-O token de acesso é resolvido, nessa ordem: `gh` CLI (se autenticado) → variável de
-ambiente `GITHUB_TOKEN` → prompt interativo (a digitação não é ecoada). O token nunca é
-gravado em `.git/config` nem impresso em log ou erro.
+### Autenticação
+
+O acesso é resolvido nesta ordem, e quem tem qualquer uma das três primeiras fontes
+nunca vê um prompt:
+
+1. o token já salvo em `~/.aec-skills/config.json` (de um login anterior)
+2. o `gh` CLI, se estiver autenticado
+3. a variável de ambiente `GITHUB_TOKEN`
+
+Sem nenhuma delas, num terminal, o instalador pergunta **como** autenticar:
+
+| Método | O que acontece |
+|---|---|
+| Navegador | Device flow do GitHub: abre `github.com/login/device`, você digita um código curto e autoriza. Sem token para gerenciar. |
+| Personal Access Token | Mostra o link já com o escopo `repo` pré-selecionado e lê o token colado — a digitação não aparece na tela. |
+| `gh` CLI | Diz o comando a rodar (`gh auth login`) e sai. |
+
+Num pipe ou na CI não há como desenhar o menu: o CLI lê o PAT direto do stdin.
+
+O token nunca é gravado em `.git/config`, nem impresso em log, erro ou stack trace.
+`config.json` é gravado com permissão `0600`.
+
+O device flow usa um OAuth App cujo `client_id` fica em claro em `src/constants.js` —
+isso é correto, não um vazamento: o device flow existe justamente para clientes
+públicos, que não conseguem guardar um `client_secret`, e o GitHub nunca pede um aqui.
+Enquanto a constante estiver vazia, o menu esconde a opção de navegador.
 
 ### Estrutura da biblioteca
 

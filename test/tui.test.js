@@ -1,14 +1,14 @@
 import test from 'node:test'
 import assert from 'node:assert/strict'
-import { newMenu, applyKey, renderMenu } from '../src/tui.js'
+import { newMenu, applyKey, renderMenu, chosenNames } from '../src/tui.js'
 
-/** @returns {import('../src/tui.js').MenuState} */
-function menu() {
+/** @param {object} [opts] @returns {import('../src/tui.js').MenuState} */
+function menu(opts) {
   return newMenu([
     { name: 'alfa', kind: 'skill', description: 'primeira' },
     { name: 'beta', kind: 'agent', description: 'segunda' },
     { name: 'gama', kind: 'hook', description: '' },
-  ])
+  ], opts)
 }
 
 test('newMenu começa no topo, sem nada marcado', () => {
@@ -88,32 +88,68 @@ test('tecla desconhecida não muda nada e não confirma', () => {
   assert.equal(next, state)
 })
 
+test('chosenNames devolve os marcados, em ordem de tela', () => {
+  let state = menu()
+  state = applyKey(state, { name: 'down' }).state
+  state = applyKey(state, { name: 'space' }).state
+  state = applyKey(state, { name: 'up' }).state
+  state = applyKey(state, { name: 'space' }).state
+
+  assert.deepEqual(chosenNames(state), ['alfa', 'beta'])
+})
+
 test('renderMenu marca o cursor e os selecionados', () => {
   let state = menu()
   state = applyKey(state, { name: 'space' }).state
-  const lines = renderMenu(state, ['claude', 'copilot']).split('\n')
+  const lines = renderMenu(state, { note: 'Harnesses detectados: claude, copilot' }).split('\n')
 
   assert.match(lines.find((l) => l.includes('alfa')), /^>\s+\[x\]/)
   assert.match(lines.find((l) => l.includes('beta')), /^\s+\[ \]/)
 })
 
-test('renderMenu mostra kind, descrição e os harnesses alvo', () => {
-  const out = renderMenu(menu(), ['claude', 'copilot'])
+test('renderMenu mostra kind, descrição, título e nota', () => {
+  const out = renderMenu(menu(), { title: 'Selecione o que instalar:', note: 'Harnesses detectados: claude, copilot' })
+  assert.match(out, /Selecione o que instalar:/)
   assert.match(out, /skill/)
   assert.match(out, /primeira/)
   assert.match(out, /claude, copilot/)
 })
 
 test('renderMenu não quebra em biblioteca vazia', () => {
-  assert.doesNotThrow(() => renderMenu(newMenu([]), []))
+  assert.doesNotThrow(() => renderMenu(newMenu([])))
 })
 
 // Regressão: uma linha maior que o terminal ocupa duas, o `paint` conta uma, e o
 // redesenho passa a subir de menos e deixar lixo na tela.
 test('nenhuma linha passa da largura do terminal', () => {
   const state = newMenu([{ name: 'hello-aec', kind: 'skill', description: 'x'.repeat(200) }])
-  const lines = renderMenu(state, ['claude', 'copilot'], 80).split('\n')
+  const lines = renderMenu(state, { columns: 80 }).split('\n')
 
   for (const line of lines) assert.ok(line.length <= 80, `linha com ${line.length} col: ${line}`)
   assert.match(lines.find((l) => l.includes('hello-aec')), /…$/)
+})
+
+test('modo single: a seleção é o cursor, e só um nome sai', () => {
+  let state = menu({ single: true })
+  state = applyKey(state, { name: 'down' }).state
+
+  assert.deepEqual(chosenNames(state), ['beta'])
+})
+
+test('modo single: space e a não marcam nada', () => {
+  let state = menu({ single: true })
+  state = applyKey(state, { name: 'space' }).state
+  state = applyKey(state, { name: 'a' }).state
+
+  assert.deepEqual([...state.selected], [])
+  assert.deepEqual(chosenNames(state), ['alfa'])
+})
+
+test('modo single: render usa radio e esconde os atalhos de marcação', () => {
+  const out = renderMenu(menu({ single: true }), { title: 'Como autenticar?' })
+
+  assert.match(out, /^>\s+\(•\) alfa/m)
+  assert.match(out, /^\s+\( \) beta/m)
+  assert.doesNotMatch(out, /<espaço>/)
+  assert.match(out, /<enter> escolhe/)
 })

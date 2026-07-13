@@ -42,7 +42,10 @@ export async function runInstall(homeDir, args, deps) {
     kind: a.kind,
     description: a.attrs.description ?? '',
   }))
-  const chosen = await select(items, harnesses)
+  const chosen = await select(items, {
+    title: 'Selecione o que instalar:',
+    note: `Harnesses detectados: ${harnesses.join(', ')}`,
+  })
 
   if (chosen === null) {
     deps.log('cancelado')

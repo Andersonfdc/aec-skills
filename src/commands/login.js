@@ -28,7 +28,9 @@ export async function runLogin(homeDir, args, deps) {
   const config = await readConfig(homeDir)
   const remoteUrl = args._?.[0] ?? config.remoteUrl ?? DEFAULT_REMOTE_URL
 
-  const token = await resolveToken(deps.env, deps)
+  // O token já gravado é a primeira fonte: sem isso, quem autenticou colando um
+  // PAT (sem gh, sem GITHUB_TOKEN) seria reperguntado a cada login.
+  const token = await resolveToken(deps.env, { ...deps, savedToken: config.token })
   const { repo } = storePaths(homeDir)
   const StoreCtor = deps.GitStoreClass ?? GitStore
   const gitStore = new StoreCtor(repo, token, remoteUrl)

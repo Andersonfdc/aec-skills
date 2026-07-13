@@ -52,20 +52,20 @@ test('install instala o que o menu devolveu', async (t) => {
   assert.match(lines.join('\n'), /✓ code-review → claude/)
 })
 
-test('o menu recebe os artefatos e os harnesses detectados', async (t) => {
+test('o menu recebe os artefatos e anuncia os harnesses detectados', async (t) => {
   const home = await tmpHome(t)
   await seed(home)
   let seen = null
 
-  await runInstall(home, {}, deps([], async (items, harnesses) => {
-    seen = { items, harnesses }
+  await runInstall(home, {}, deps([], async (items, opts) => {
+    seen = { items, opts }
     return []
   }))
 
   assert.deepEqual(seen.items, [
     { name: 'code-review', kind: 'skill', description: 'Revisa código.' },
   ])
-  assert.deepEqual(seen.harnesses, ['claude'])
+  assert.match(seen.opts.note, /claude/)
 })
 
 test('cancelar no menu não instala nada', async (t) => {
@@ -98,12 +98,13 @@ test('--harness restringe o alvo e o menu enxerga a restrição', async (t) => {
   await mkdir(path.join(home, '.copilot'), { recursive: true })
   let seen = null
 
-  await runInstall(home, { harness: 'copilot' }, deps([], async (_items, harnesses) => {
-    seen = harnesses
+  await runInstall(home, { harness: 'copilot' }, deps([], async (_items, opts) => {
+    seen = opts.note
     return ['code-review']
   }))
 
-  assert.deepEqual(seen, ['copilot'])
+  assert.match(seen, /copilot/)
+  assert.doesNotMatch(seen, /claude/)
   await access(path.join(home, '.copilot', 'skills', 'code-review'))
   await assert.rejects(access(path.join(home, '.claude', 'skills', 'code-review')))
 })
