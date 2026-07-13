@@ -1,0 +1,15 @@
+{
+  "name": "aec-skills",
+  "version": "0.1.0",
+  "description": "Biblioteca privada de skills e agents para Claude Code, Copilot, Codex e Gemini",
+  "type": "module",
+  "bin": { "aec-skills": "src/cli.js" },
+  "files": ["src"],
+  "engines": { "node": ">=20" },
+  "scripts": {
+    "test": "node --test test/"
+  },
+  "dependencies": {
+    "yaml": "^2.6.0"
+  }
+}
