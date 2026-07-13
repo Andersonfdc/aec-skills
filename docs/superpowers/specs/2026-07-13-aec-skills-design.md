@@ -73,10 +73,9 @@ As pastas são o índice. Publicar = commit + push.
 ```
 ~/.aec-skills/
 ├── repo/                      git clone --depth 1 do repo privado
-├── build/                     derivados gerados (agents, commands, GEMINI.md)
-│   ├── claude/
-│   ├── copilot/
-│   └── gemini/
+├── build/                     derivados gerados — só onde há conversão
+│   ├── copilot/               agents .agent.md
+│   └── gemini/                commands .toml, índice de skills
 ├── installed.json             o que está instalado, onde, com qual SHA
 └── config.json                credencial e harnesses ativos (chmod 600)
 ```
@@ -88,11 +87,11 @@ As pastas são o índice. Publicar = commit + push.
 | `~/.claude/skills/<n>` | junction | `store/repo/skills/<n>` |
 | `~/.copilot/skills/<n>` | junction | `store/repo/skills/<n>` |
 | `~/.codex/skills/<n>` | junction | `store/repo/skills/<n>` |
-| `~/.claude/agents/<n>.md` | junction | `store/build/claude/agents/<n>.md` |
+| `~/.claude/agents/<n>.md` | junction | `store/repo/agents/<n>.md` |
 | `~/.copilot/agents/<n>.agent.md` | junction | `store/build/copilot/agents/<n>.agent.md` |
 | `~/.claude/commands/<n>.md` | junction | `store/repo/commands/<n>.md` |
 | `~/.gemini/commands/<n>.toml` | junction | `store/build/gemini/commands/<n>.toml` |
-| `~/.gemini/GEMINI.md` | merge em bloco marcado | `store/build/gemini/index.md` |
+| `~/.gemini/GEMINI.md` | merge em bloco marcado | índice das skills **instaladas** (`installed.json` + `store/repo/skills/`) |
 | `~/.claude/settings.json` | merge em bloco marcado | `store/repo/hooks/*/hook.json` |
 
 **Junction, não symlink de arquivo.** No Windows, junction de diretório não exige
