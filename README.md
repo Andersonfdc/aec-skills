@@ -11,6 +11,17 @@ Não há publicação no npm: o `npx` instala o CLI direto deste repositório, u
 credencial git que você já tem.
 
 ```bash
+npx github:Andersonfdc/aec-skills
+```
+
+Sem argumento nenhum, abre o instalador interativo: faz o login se ainda não houver
+store, lista a biblioteca num menu (`<espaço>` marca, `<a>` marca tudo, `<enter>`
+instala, `<q>` sai) e instala o que você escolheu nos harnesses detectados.
+
+Fora de um TTY — num pipe, num script, na CI — não há como desenhar o menu, então os
+comandos continuam disponíveis um a um:
+
+```bash
 npx github:Andersonfdc/aec-skills login
 npx github:Andersonfdc/aec-skills add hello-aec
 ```
@@ -36,6 +47,7 @@ hooks/<nome>/hook.json      fragmento injetado no settings.json do Claude Code
 
 | Comando | Descrição |
 |---|---|
+| `install` | instalador interativo — é o padrão quando o CLI roda sem comando num terminal |
 | `login [url]` | autentica e clona a biblioteca para `~/.aec-skills` (sem `url`, usa este repositório) |
 | `list` | lista as skills, agents, commands e hooks disponíveis na biblioteca |
 | `add <nome...>` | instala os artefatos pedidos nos harnesses detectados (`--all` instala tudo) |

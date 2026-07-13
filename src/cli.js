@@ -14,10 +14,12 @@ import { runRemove } from './commands/remove.js'
 import { runStatus } from './commands/status.js'
 import { runUpdate } from './commands/update.js'
 import { runUninstall } from './commands/uninstall.js'
+import { runInstall } from './commands/install.js'
 
 const HELP = `aec-skills <comando> [opções]
 
 Comandos:
+  install               instalador interativo (padrão quando não há comando)
   login                 autentica e clona a biblioteca
   list                  lista as skills e agents disponíveis
   add <nome...>         instala nos harnesses detectados (--all para tudo)
@@ -31,6 +33,7 @@ Opções:
   --version             imprime a versão`
 
 const COMMANDS = {
+  install: runInstall,
   login: runLogin,
   list: runList,
   add: runAdd,
@@ -53,13 +56,16 @@ export async function runCli(argv, io = {}) {
     log(await readVersion())
     return 0
   }
+  // Sem comando, num TTY, o padrão é o instalador interativo. Num pipe ou na CI
+  // não há como desenhar um menu — aí o padrão continua sendo o help.
   const [command] = argv
-  if (!command) {
+  const interactive = io.isTTY ?? process.stdin.isTTY
+  if (!command && !interactive) {
     log(HELP)
     return 1
   }
 
-  const run = COMMANDS[command]
+  const run = command ? COMMANDS[command] : runInstall
   if (!run) {
     log(`comando desconhecido: ${command}`)
     log(HELP)
