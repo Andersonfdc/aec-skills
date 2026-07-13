@@ -132,3 +132,17 @@ test('FakeGitStore seeda estado via options bag (regressão do construtor posici
   const fake = new FakeGitStore({ head: 'zzz999' })
   assert.equal(await fake.head(), 'zzz999')
 })
+
+test('clone funciona numa instalação nova, com o store (~/.aec-skills) ainda inexistente', async (t) => {
+  // Regressão do smoke test: sem mkdir, execFile falhava com ENOENT no cwd
+  // ausente, e o catch confundia isso com "git não instalado" (mesmo code).
+  const dir = await tmpHome(t)
+  const remoteDir = path.join(dir, 'remote.git')
+  await run('git', ['init', '--bare', '-q', remoteDir])
+
+  const store = path.join(dir, 'fresh-home', '.aec-skills')
+  const repoDir = path.join(store, 'repo')
+  await new GitStore(repoDir).clone(remoteDir)
+
+  assert.equal(await new GitStore(repoDir).isClone(), true)
+})

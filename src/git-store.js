@@ -1,4 +1,5 @@
 import { execFile } from 'node:child_process'
+import { mkdir } from 'node:fs/promises'
 import { promisify } from 'node:util'
 import path from 'node:path'
 
@@ -44,7 +45,12 @@ export class GitStore {
    */
   async clone(remoteUrl) {
     const args = [...this.#authArgs(remoteUrl), 'clone', '--depth', '1', remoteUrl, this.repoDir]
-    await this.#git(args, path.dirname(this.repoDir))
+    const cwd = path.dirname(this.repoDir)
+    // ponytail: numa instalação nova, `cwd` (~/.aec-skills) ainda não existe —
+    // sem isso, execFile falha com ENOENT no próprio spawn, e #git() confunde
+    // isso com "git não instalado" (mesmo error.code). Bug achado no smoke test.
+    await mkdir(cwd, { recursive: true })
+    await this.#git(args, cwd)
     this.remoteUrl = remoteUrl
   }
 
