@@ -13,6 +13,11 @@ import { previewHook, installHook } from '../hooks.js'
  */
 export async function runAdd(homeDir, args, deps) {
   const artifacts = await readLibrary(storePaths(homeDir).repo)
+  if (artifacts.length === 0) {
+    deps.log('biblioteca vazia — rode `npx aec-skills login` para clonar')
+    return 1
+  }
+
   const wanted = args.all ? artifacts : pickByName(artifacts, args._ ?? [], deps.log)
   if (wanted === null) return 1
 

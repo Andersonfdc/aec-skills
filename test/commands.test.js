@@ -69,6 +69,17 @@ test('runAdd instala a skill no harness detectado', async (t) => {
   assert.equal((await readInstalled(home)).length, 1)
 })
 
+test('runAdd --all falha com mensagem clara quando não há store (biblioteca vazia)', async (t) => {
+  const home = await tmpHome(t)
+  await mkdir(path.join(home, '.claude'), { recursive: true })
+  const output = []
+
+  const code = await runAdd(home, { all: true }, { log: (l) => output.push(l), gitStore: new FakeGitStore() })
+
+  assert.equal(code, 1)
+  assert.match(output.join('\n'), /biblioteca vazia.*login/s)
+})
+
 test('runAdd falha citando o artefato inexistente', async (t) => {
   const home = await tmpHome(t)
   await seed(home)
@@ -127,6 +138,16 @@ test('runUpdate pula skill editada localmente e avisa', async (t) => {
   assert.equal(code, 0)
   assert.ok(!git.calls.includes('pull'))
   assert.match(output.join('\n'), /editad[ao] localmente.*--force/s)
+})
+
+test('runUpdate falha com mensagem clara quando não há store', async (t) => {
+  const home = await tmpHome(t)
+  const output = []
+
+  const code = await runUpdate(home, {}, { log: (l) => output.push(l), gitStore: new FakeGitStore({ cloned: false }) })
+
+  assert.equal(code, 1)
+  assert.match(output.join('\n'), /biblioteca vazia.*login/s)
 })
 
 test('runUpdate --force descarta a edição local ANTES do pull', async (t) => {

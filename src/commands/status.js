@@ -96,6 +96,17 @@ export function formatChanges(changes) {
  */
 export async function runStatus(homeDir, gitStore, io = {}) {
   const log = io.log ?? console.log
+  // isClone() falha "limpo" (devolve false) tanto quando o repo nunca foi
+  // clonado quanto quando o diretório não existe ainda — nos dois casos
+  // `#git()` roda com `cwd` ausente, execFile falha com ENOENT no próprio
+  // spawn, e isso é indistinguível de "git não instalado" (ver clone() em
+  // git-store.js). Checar aqui evita chamar `computeChanges` -> `locallyModified()`
+  // sem esse guarda, que propagava GitNotInstalledError e o CLI acusava git
+  // ausente numa máquina que só nunca rodou `login`.
+  if (!(await gitStore.isClone())) {
+    log('biblioteca vazia — rode `npx aec-skills login` para clonar')
+    return 1
+  }
   await maybeFetch(homeDir, gitStore, io.now ?? Date.now())
   log(formatChanges(await computeChanges(homeDir, gitStore)))
   return 0

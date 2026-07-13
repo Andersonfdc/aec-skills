@@ -16,6 +16,14 @@ import { maybeFetch } from './status.js'
  * @returns {Promise<number>}
  */
 export async function runUpdate(homeDir, args, deps) {
+  // Mesmo guarda de runStatus (status.js): sem store, `locallyModified()`
+  // roda `#git()` com `cwd` ausente e o ENOENT do spawn vira GitNotInstalledError
+  // — checar isClone() primeiro troca esse crash enganoso por uma mensagem correta.
+  if (!(await deps.gitStore.isClone())) {
+    deps.log('biblioteca vazia — rode `npx aec-skills login` para clonar')
+    return 1
+  }
+
   await maybeFetch(homeDir, deps.gitStore, deps.now ?? Date.now())
 
   const modified = await deps.gitStore.locallyModified()

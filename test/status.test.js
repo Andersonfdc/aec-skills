@@ -108,6 +108,20 @@ test('formatChanges informa que está tudo em dia quando não há mudança', () 
   assert.match(formatChanges([]), /tudo em dia/)
 })
 
+test('runStatus falha com mensagem clara quando não há store, sem dizer "tudo em dia" nem "git não encontrado"', async (t) => {
+  const home = await tmpHome(t)
+  const git = new FakeGitStore({ cloned: false })
+  const output = []
+
+  const code = await runStatus(home, git, { log: (l) => output.push(l) })
+
+  assert.equal(code, 1)
+  const text = output.join('\n')
+  assert.match(text, /biblioteca vazia.*login/s)
+  assert.ok(!text.includes('tudo em dia'))
+  assert.ok(!text.includes('git não encontrado'))
+})
+
 test('maybeFetch busca quando nunca buscou antes', async (t) => {
   const home = await tmpHome(t)
   const git = new FakeGitStore()
