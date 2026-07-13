@@ -1,6 +1,19 @@
 #!/usr/bin/env node
 import { readFile } from 'node:fs/promises'
 import { fileURLToPath } from 'node:url'
+import { homedir } from 'node:os'
+import { parseArgs } from 'node:util'
+import { createInterface } from 'node:readline/promises'
+import { GitStore } from './git-store.js'
+import { storePaths } from './paths.js'
+import { readConfig } from './state.js'
+import { runLogin } from './commands/login.js'
+import { runList } from './commands/list.js'
+import { runAdd } from './commands/add.js'
+import { runRemove } from './commands/remove.js'
+import { runStatus } from './commands/status.js'
+import { runUpdate } from './commands/update.js'
+import { runUninstall } from './commands/uninstall.js'
 
 const HELP = `aec-skills <comando> [opções]
 
@@ -17,10 +30,20 @@ Opções:
   --harness=<lista>     claude,copilot,codex,gemini (padrão: autodetectar)
   --version             imprime a versão`
 
+const COMMANDS = {
+  login: runLogin,
+  list: runList,
+  add: runAdd,
+  remove: runRemove,
+  status: runStatus,
+  update: runUpdate,
+  uninstall: runUninstall,
+}
+
 /**
  * Ponto de entrada do CLI.
  * @param {string[]} argv argumentos, sem `node` e sem o caminho do script
- * @param {{ log?: (line: string) => void }} [io]
+ * @param {{ log?: (line: string) => void, homeDir?: string }} [io]
  * @returns {Promise<number>} exit code
  */
 export async function runCli(argv, io = {}) {
@@ -35,8 +58,63 @@ export async function runCli(argv, io = {}) {
     log(HELP)
     return 1
   }
-  log(`comando desconhecido: ${command}`)
-  return 1
+
+  const run = COMMANDS[command]
+  if (!run) {
+    log(`comando desconhecido: ${command}`)
+    log(HELP)
+    return 1
+  }
+
+  const homeDir = io.homeDir ?? homedir()
+  const args = parseCommandArgs(argv.slice(1))
+  // A GitStore precisa da URL confiável lida do NOSSO config.json, nunca de
+  // `git remote get-url origin` — ver o contrato de segurança em git-store.js.
+  const config = await readConfig(homeDir)
+  const gitStore = new GitStore(storePaths(homeDir).repo, config.token ?? null, config.remoteUrl ?? null)
+  const deps = { log, gitStore, env: process.env, confirm: askYesNo }
+
+  try {
+    // runStatus tem assinatura (homeDir, gitStore, io); os demais (homeDir, args, deps).
+    return command === 'status'
+      ? await runStatus(homeDir, gitStore, { log })
+      : await run(homeDir, args, deps)
+  } catch (error) {
+    log(`erro: ${error.message}`)
+    return 1
+  }
+}
+
+/**
+ * @param {string[]} argv
+ * @returns {{ _: string[], all?: boolean, force?: boolean, yes?: boolean, harness?: string }}
+ */
+function parseCommandArgs(argv) {
+  const { values, positionals } = parseArgs({
+    args: argv,
+    options: {
+      all: { type: 'boolean' },
+      force: { type: 'boolean' },
+      yes: { type: 'boolean', short: 'y' },
+      harness: { type: 'string' },
+    },
+    allowPositionals: true,
+  })
+  return { ...values, _: positionals }
+}
+
+/**
+ * @param {string} question
+ * @returns {Promise<boolean>}
+ */
+async function askYesNo(question) {
+  const rl = createInterface({ input: process.stdin, output: process.stdout })
+  try {
+    const answer = await rl.question(question)
+    return answer.trim().toLowerCase() === 'y'
+  } finally {
+    rl.close()
+  }
 }
 
 /** @returns {Promise<string>} */
