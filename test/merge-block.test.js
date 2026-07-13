@@ -59,3 +59,39 @@ test('removeJsonHooks remove só a nossa entrada', () => {
   const result = removeJsonHooks(settings, fragment)
   assert.deepEqual(result.hooks.SessionStart, [{ command: 'do-usuario' }])
 })
+
+test('mergeTextBlock rejeita marcador start órfão', () => {
+  assert.throws(() => mergeTextBlock(`# Topo\n${BLOCK_START}\nX\n`, 'NOVO'), /malformado/)
+})
+
+test('mergeTextBlock rejeita marcador end órfão', () => {
+  assert.throws(() => mergeTextBlock(`# Topo\nX\n${BLOCK_END}\n`, 'NOVO'), /malformado/)
+})
+
+test('removeTextBlock rejeita marcador start órfão', () => {
+  assert.throws(() => removeTextBlock(`# Topo\n${BLOCK_START}\nX\n`), /malformado/)
+})
+
+test('removeTextBlock rejeita marcador end órfão', () => {
+  assert.throws(() => removeTextBlock(`# Topo\nX\n${BLOCK_END}\n`), /malformado/)
+})
+
+test('mergeJsonHooks e removeJsonHooks não mutam settings nem fragment', () => {
+  const settings = { hooks: { SessionStart: [{ command: 'do-usuario' }] } }
+  const fragment = { hooks: { SessionStart: [{ command: 'aec' }] } }
+  const settingsBefore = structuredClone(settings)
+  const fragmentBefore = structuredClone(fragment)
+
+  mergeJsonHooks(settings, fragment)
+  removeJsonHooks(settings, fragment)
+
+  assert.deepEqual(settings, settingsBefore)
+  assert.deepEqual(fragment, fragmentBefore)
+})
+
+test('removeJsonHooks não injeta array vazio para evento ausente', () => {
+  const settings = { hooks: { SessionStart: [{ command: 'do-usuario' }] } }
+  const fragment = { hooks: { PreToolUse: [{ command: 'aec' }] } }
+  const result = removeJsonHooks(settings, fragment)
+  assert.ok(!('PreToolUse' in result.hooks))
+})

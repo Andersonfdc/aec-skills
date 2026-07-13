@@ -12,6 +12,7 @@ const BLOCK_PATTERN = new RegExp(`${escapeRegExp(BLOCK_START)}[\\s\\S]*?${escape
  * @returns {string}
  */
 export function mergeTextBlock(existing, block) {
+  assertWellFormedMarkers(existing)
   const marked = `${BLOCK_START}\n${block}\n${BLOCK_END}\n`
   if (BLOCK_PATTERN.test(existing)) return existing.replace(BLOCK_PATTERN, marked)
 
@@ -25,7 +26,26 @@ export function mergeTextBlock(existing, block) {
  * @returns {string}
  */
 export function removeTextBlock(existing) {
+  assertWellFormedMarkers(existing)
   return existing.replace(BLOCK_PATTERN, '')
+}
+
+/**
+ * Rejeita conteúdo com marcador órfão (apenas start ou apenas end), já que
+ * um bloco malformado nunca casa com BLOCK_PATTERN e seria duplicado a cada
+ * execução em vez de ser reparado.
+ * @param {string} text
+ * @returns {void}
+ */
+function assertWellFormedMarkers(text) {
+  const hasStart = text.includes(BLOCK_START)
+  const hasEnd = text.includes(BLOCK_END)
+  if (hasStart && !hasEnd) {
+    throw new Error(`bloco aec-skills malformado: encontrado "${BLOCK_START}" sem o "${BLOCK_END}" correspondente — remova o marcador órfão manualmente antes de continuar`)
+  }
+  if (hasEnd && !hasStart) {
+    throw new Error(`bloco aec-skills malformado: encontrado "${BLOCK_END}" sem o "${BLOCK_START}" correspondente — remova o marcador órfão manualmente antes de continuar`)
+  }
 }
 
 /**
@@ -49,6 +69,13 @@ export function mergeJsonHooks(settings, fragment) {
 
 /**
  * Remove do settings exatamente as entradas do fragmento.
+ *
+ * O casamento é por igualdade profunda (deep equality), não por proveniência:
+ * não há campo marcador na entrada que identifique "isso é nosso" (injetar um
+ * exigiria confirmar que o Claude Code tolera campos desconhecidos num hook,
+ * o que não está verificado). Assim, uma entrada que o usuário tenha escrito
+ * de forma byte-idêntica à nossa é indistinguível e também será removida. O
+ * chamador deve mostrar ao usuário o que será removido antes de aplicar.
  * @param {Record<string, unknown>} settings
  * @param {{ hooks: Record<string, object[]> }} fragment
  * @returns {Record<string, unknown>}
@@ -58,7 +85,8 @@ export function removeJsonHooks(settings, fragment) {
   if (!merged.hooks) return merged
 
   for (const [event, entries] of Object.entries(fragment.hooks)) {
-    const current = merged.hooks[event] ?? []
+    const current = merged.hooks[event]
+    if (!current) continue
     merged.hooks[event] = current.filter((c) => !entries.some((e) => isDeepStrictEqual(c, e)))
   }
   return merged
