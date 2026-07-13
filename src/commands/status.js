@@ -48,12 +48,25 @@ export async function computeChanges(homeDir, gitStore) {
     changes.push({ kind: 'locally-edited', name, detail: 'você editou localmente' })
   }
   for (const name of changedNames) {
-    if (editedNames.has(name)) continue
-    changes.push(installedNames.has(name)
-      ? { kind: 'modified', name, detail: 'modificada na biblioteca' }
-      : { kind: 'new', name, detail: 'nova na biblioteca' })
+    const change = classifyChange(name, editedNames, installedNames)
+    if (change) changes.push(change)
   }
   return changes
+}
+
+/**
+ * Classifica um artefato remotamente alterado como `modified` ou `new`.
+ * Editado localmente já foi reportado como `locally-edited` — não duplica.
+ * @param {string} name
+ * @param {Set<string>} editedNames
+ * @param {Set<string>} installedNames
+ * @returns {Change|null} null quando o artefato foi editado localmente
+ */
+function classifyChange(name, editedNames, installedNames) {
+  if (editedNames.has(name)) return null
+  return installedNames.has(name)
+    ? { kind: 'modified', name, detail: 'modificada na biblioteca' }
+    : { kind: 'new', name, detail: 'nova na biblioteca' }
 }
 
 /**

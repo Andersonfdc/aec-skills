@@ -59,6 +59,31 @@ test('computeChanges avisa sobre skill editada localmente', async (t) => {
   assert.equal(changes[0].name, 'karpathy')
 })
 
+test('computeChanges nunca reporta como modified um artefato editado localmente, mesmo quando ele também mudou no remoto', async (t) => {
+  const home = await tmpHome(t)
+  await seedSkills(home, ['karpathy', 'code-review'])
+  await writeInstalled(home, [
+    { name: 'karpathy', kind: 'skill', harness: 'claude', dest: '/x', mode: 'link', sha: 'aaaa111' },
+    { name: 'code-review', kind: 'skill', harness: 'claude', dest: '/x', mode: 'link', sha: 'aaaa111' },
+  ])
+  const git = new FakeGitStore({
+    head: 'aaaa111',
+    remoteHead: 'bbbb222',
+    changed: ['skills/karpathy/SKILL.md', 'skills/code-review/SKILL.md'],
+    modified: ['skills/karpathy/SKILL.md'],
+  })
+
+  const changes = await computeChanges(home, git)
+
+  const karpathyChanges = changes.filter((c) => c.name === 'karpathy')
+  assert.equal(karpathyChanges.length, 1)
+  assert.equal(karpathyChanges[0].kind, 'locally-edited')
+
+  const codeReviewChanges = changes.filter((c) => c.name === 'code-review')
+  assert.equal(codeReviewChanges.length, 1)
+  assert.equal(codeReviewChanges[0].kind, 'modified')
+})
+
 test('computeChanges devolve vazio quando local e remoto estão iguais', async (t) => {
   const home = await tmpHome(t)
   await seedSkills(home, ['code-review'])
