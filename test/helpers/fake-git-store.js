@@ -25,6 +25,9 @@ export class FakeGitStore {
   /** @returns {Promise<void>} */
   async pull() { this.calls.push('pull'); this.state.head = this.state.remoteHead; this.state.changed = [] }
 
+  /** @returns {Promise<void>} */
+  async resetHard() { this.calls.push('reset'); this.state.modified = [] }
+
   /** @returns {Promise<string>} */
   async head() { return this.state.head }
 

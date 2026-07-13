@@ -19,11 +19,17 @@ export async function runUpdate(homeDir, args, deps) {
   await maybeFetch(homeDir, deps.gitStore, deps.now ?? Date.now())
 
   const modified = await deps.gitStore.locallyModified()
-  if (modified.length > 0 && !args.force) {
-    deps.log('há artefato(s) editado localmente no store:')
-    for (const file of modified) deps.log(`  ! ${file}`)
-    deps.log('\nnada foi alterado. Use --force para sobrescrever.')
-    return 0
+  if (modified.length > 0) {
+    if (!args.force) {
+      deps.log('há artefato(s) editado localmente no store:')
+      for (const file of modified) deps.log(`  ! ${file}`)
+      deps.log('\nnada foi alterado. Use --force para sobrescrever.')
+      return 0
+    }
+    // `pull --ff-only` aborta com árvore suja: sem descartar as edições aqui,
+    // --force apenas pulava o aviso e falhava logo em seguida.
+    deps.log(`--force: descartando ${modified.length} edição(ões) local(is) no store`)
+    await deps.gitStore.resetHard()
   }
 
   await deps.gitStore.pull()

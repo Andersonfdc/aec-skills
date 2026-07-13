@@ -129,14 +129,16 @@ test('runUpdate pula skill editada localmente e avisa', async (t) => {
   assert.match(output.join('\n'), /editad[ao] localmente.*--force/s)
 })
 
-test('runUpdate --force aplica mesmo com edição local', async (t) => {
+test('runUpdate --force descarta a edição local ANTES do pull', async (t) => {
   const home = await tmpHome(t)
   await seed(home)
   const git = new FakeGitStore({ modified: ['skills/code-review/SKILL.md'] })
 
   await runUpdate(home, { force: true }, { log: () => {}, gitStore: git })
 
-  assert.ok(git.calls.includes('pull'))
+  // A ordem é o contrato: `pull --ff-only` aborta se a árvore ainda estiver suja.
+  assert.deepEqual(git.calls, ['fetch', 'reset', 'pull'])
+  assert.deepEqual(await git.locallyModified(), [])
 })
 
 test('runUpdate não diz "atualizado" para artefato pulado em todos os harnesses', async (t) => {

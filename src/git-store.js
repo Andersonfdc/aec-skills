@@ -119,6 +119,22 @@ export class GitStore {
     await this.#git([...this.#fetchAuthArgs(), 'pull', '--quiet', '--ff-only', 'origin', 'HEAD'])
   }
 
+  /**
+   * Descarta as edições locais não commitadas do clone, para que o `pull
+   * --ff-only` seguinte possa aplicar — sem isso o git aborta com "local
+   * changes would be overwritten" e o `update --force` não forçava nada.
+   *
+   * Escopo: como todo comando desta classe, roda com `cwd = this.repoDir`
+   * (`~/.aec-skills/repo`) e sem pathspec — nunca alcança um diretório do
+   * usuário. Reseta para `HEAD`, não para `FETCH_HEAD`: o fetch é
+   * oportunista (a cada 6h, ver `maybeFetch`), então `FETCH_HEAD` pode estar
+   * velho ou nem existir. Quem move o HEAD é o `pull`, logo depois.
+   * @returns {Promise<void>}
+   */
+  async resetHard() {
+    await this.#git(['reset', '--hard', 'HEAD'])
+  }
+
   /** @returns {Promise<string>} SHA curto do HEAD local */
   async head() {
     return this.#git(['rev-parse', '--short', 'HEAD'])
