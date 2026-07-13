@@ -36,14 +36,19 @@ export async function linkPath(source, dest) {
 }
 
 /**
- * Remove `dest` apenas se ele for um link nosso apontando para `source`.
- * Cópias de fallback também são removidas (o chamador só chama para o que registrou).
+ * Remove `dest` de acordo com o modo em que foi instalado.
+ * Em modo 'link' (padrão), remove apenas se `dest` for um link nosso apontando
+ * para `source` — verificado via `pointsTo`. Em modo 'copy', remove `dest` se
+ * existir; isso é seguro porque o chamador só passa 'copy' para destinos que
+ * ele mesmo registrou em installed.json como cópia de fallback criada por nós.
  * @param {string} dest
  * @param {string} source
+ * @param {'link'|'copy'} [mode]
  * @returns {Promise<boolean>} true se removeu
  */
-export async function unlinkPath(dest, source) {
-  if (!(await pointsTo(dest, source))) return false
+export async function unlinkPath(dest, source, mode = 'link') {
+  const shouldRemove = mode === 'copy' ? await pathExists(dest) : await pointsTo(dest, source)
+  if (!shouldRemove) return false
   await rm(dest, { recursive: true, force: true })
   return true
 }

@@ -7,7 +7,7 @@
   "files": ["src"],
   "engines": { "node": ">=20" },
   "scripts": {
-    "test": "node --test test/"
+    "test": "node --test"
   },
   "dependencies": {
     "yaml": "^2.6.0"

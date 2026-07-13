@@ -79,3 +79,27 @@ test('unlinkPath devolve false quando o destino não existe', async (t) => {
   const home = await tmpHome(t)
   assert.equal(await unlinkPath(path.join(home, 'nada'), path.join(home, 'src')), false)
 })
+
+test("unlinkPath remove uma cópia registrada quando mode é 'copy'", async (t) => {
+  const home = await tmpHome(t)
+  const source = path.join(home, 'store', 'x')
+  await mkdir(source, { recursive: true })
+  const dest = path.join(home, '.claude', 'skills', 'x')
+  await mkdir(dest, { recursive: true })
+  await writeFile(path.join(dest, 'SKILL.md'), 'cópia de fallback')
+
+  assert.equal(await unlinkPath(dest, source, 'copy'), true)
+  await assert.rejects(() => lstat(dest))
+})
+
+test("unlinkPath em modo link não remove uma cópia", async (t) => {
+  const home = await tmpHome(t)
+  const source = path.join(home, 'store', 'x')
+  await mkdir(source, { recursive: true })
+  const dest = path.join(home, '.claude', 'skills', 'x')
+  await mkdir(dest, { recursive: true })
+  await writeFile(path.join(dest, 'SKILL.md'), 'cópia de fallback')
+
+  assert.equal(await unlinkPath(dest, source, 'link'), false)
+  assert.ok((await stat(dest)).isDirectory())
+})
