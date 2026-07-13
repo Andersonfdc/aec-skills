@@ -1,6 +1,6 @@
 import { test } from 'node:test'
 import assert from 'node:assert/strict'
-import { stat } from 'node:fs/promises'
+import { chmod, stat } from 'node:fs/promises'
 import { readConfig, writeConfig, readInstalled, writeInstalled } from '../src/state.js'
 import { storePaths } from '../src/paths.js'
 import { tmpHome } from './helpers/tmp-home.js'
@@ -19,6 +19,17 @@ test('writeConfig e readConfig fazem round-trip', async (t) => {
 test('writeConfig grava config.json com permissão 0600', { skip: process.platform === 'win32' }, async (t) => {
   const home = await tmpHome(t)
   await writeConfig(home, { token: 'segredo' })
+  const info = await stat(storePaths(home).configFile)
+  assert.equal(info.mode & 0o777, 0o600)
+})
+
+test('writeConfig reaperta para 0600 mesmo quando o arquivo já existe com permissão mais aberta', { skip: process.platform === 'win32' }, async (t) => {
+  const home = await tmpHome(t)
+  await writeConfig(home, { token: 'segredo' })
+  await chmod(storePaths(home).configFile, 0o644)
+
+  await writeConfig(home, { token: 'segredo', lastFetch: 123 })
+
   const info = await stat(storePaths(home).configFile)
   assert.equal(info.mode & 0o777, 0o600)
 })

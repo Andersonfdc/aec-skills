@@ -1,4 +1,4 @@
-import { mkdir, readFile, writeFile } from 'node:fs/promises'
+import { chmod, mkdir, readFile, writeFile } from 'node:fs/promises'
 import path from 'node:path'
 import { storePaths } from './paths.js'
 
@@ -71,4 +71,19 @@ async function readJson(file, fallback) {
 async function writeJson(file, value, mode) {
   await mkdir(path.dirname(file), { recursive: true })
   await writeFile(file, `${JSON.stringify(value, null, 2)}\n`, { mode })
+  // `mode` no writeFile só se aplica na criação — reforça em toda gravação,
+  // senão um config.json pré-existente com permissões mais abertas nunca aperta.
+  await chmodIfPosix(file, mode)
+}
+
+/**
+ * Windows não implementa bits de permissão POSIX — fs.chmod lá é um
+ * no-op inofensivo, então pulamos para não gastar uma syscall sem efeito.
+ * @param {string} file
+ * @param {number} mode
+ * @returns {Promise<void>}
+ */
+async function chmodIfPosix(file, mode) {
+  if (process.platform === 'win32') return
+  await chmod(file, mode)
 }
