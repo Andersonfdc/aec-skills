@@ -12,12 +12,20 @@ export class GitNotInstalledError extends Error {
   }
 }
 
-/** Encapsula todas as operações git sobre o clone local. Nenhum outro módulo executa git. */
+/**
+ * Encapsula todas as operações git sobre o clone local. Nenhum outro módulo executa git.
+ *
+ * Quando usado para operações de rede autenticadas (`fetch`/`pull` com
+ * token), a instância deve ser construída com `remoteUrl` lida do
+ * `config.json` da própria CLI (gravado no login) — nunca de
+ * `git remote get-url origin`, que é exatamente o valor que um atacante
+ * teria adulterado.
+ */
 export class GitStore {
   /**
    * @param {string} repoDir caminho do clone (`~/.aec-skills/repo`)
    * @param {string|null} [token] token de acesso; `null` usa o credential helper do ambiente (ex. `gh`)
-   * @param {string|null} [remoteUrl] URL do remote a que o header de auth fica restrito (ver `#authArgs`)
+   * @param {string|null} [remoteUrl] URL do remote a que o header de auth fica restrito — fonte confiável (`config.json` da CLI), nunca `git remote get-url origin` (ver `#fetchAuthArgs`)
    */
   constructor(repoDir, token = null, remoteUrl = null) {
     this.repoDir = repoDir
@@ -54,14 +62,21 @@ export class GitStore {
   }
 
   /**
-   * URL do remote a escopar o header de auth: usa a fixada no construtor/
-   * clone; sem ela, lê `origin` do git (não emite header sem URL conhecida —
-   * ver finding de segurança no header unscoped).
-   * @returns {Promise<string>}
+   * Args de auth para `fetch`/`pull`. Sem token, retorna `[]` — o
+   * credential helper do ambiente (ex. `gh`) cuida da autenticação e
+   * nenhuma URL precisa ser conhecida. Com token, exige `remoteUrl` já
+   * fixada (construtor ou `clone()` desta instância); nunca lê `origin`
+   * do git — essa é exatamente a fonte que um attacker teria adulterado.
+   * @returns {string[]}
    */
-  async #remoteUrl() {
-    if (this.remoteUrl) return this.remoteUrl
-    return this.#git(['remote', 'get-url', 'origin'])
+  #fetchAuthArgs() {
+    if (!this.token) return []
+    if (!this.remoteUrl) {
+      throw new Error(
+        'GitStore: remoteUrl ausente para fetch/pull autenticado — construa `new GitStore(repoDir, token, remoteUrl)` com a URL lida do config.json da CLI (nunca de `git remote get-url origin`)'
+      )
+    }
+    return this.#authArgs(this.remoteUrl)
   }
 
   /**
@@ -82,16 +97,20 @@ export class GitStore {
     return error
   }
 
-  /** @returns {Promise<void>} */
+  /**
+   * @returns {Promise<void>}
+   * @throws {Error} se houver token mas nenhuma `remoteUrl` conhecida (ver `#fetchAuthArgs`)
+   */
   async fetch() {
-    const url = await this.#remoteUrl()
-    await this.#git([...this.#authArgs(url), 'fetch', '--quiet', 'origin'])
+    await this.#git([...this.#fetchAuthArgs(), 'fetch', '--quiet', 'origin'])
   }
 
-  /** @returns {Promise<void>} */
+  /**
+   * @returns {Promise<void>}
+   * @throws {Error} se houver token mas nenhuma `remoteUrl` conhecida (ver `#fetchAuthArgs`)
+   */
   async pull() {
-    const url = await this.#remoteUrl()
-    await this.#git([...this.#authArgs(url), 'pull', '--quiet', '--ff-only', 'origin', 'HEAD'])
+    await this.#git([...this.#fetchAuthArgs(), 'pull', '--quiet', '--ff-only', 'origin', 'HEAD'])
   }
 
   /** @returns {Promise<string>} SHA curto do HEAD local */

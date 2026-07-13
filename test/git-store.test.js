@@ -5,6 +5,7 @@ import { promisify } from 'node:util'
 import { writeFile, readFile } from 'node:fs/promises'
 import path from 'node:path'
 import { GitStore } from '../src/git-store.js'
+import { FakeGitStore } from './helpers/fake-git-store.js'
 import { tmpHome } from './helpers/tmp-home.js'
 
 const run = promisify(execFile)
@@ -99,4 +100,35 @@ test('erro de git não vaza o token nem seu header base64', async (t) => {
       return true
     }
   )
+})
+
+test('fetch com token mas sem remoteUrl conhecida lança erro nomeando a URL ausente', async (t) => {
+  const dir = await tmpHome(t)
+  const store = new GitStore(dir, 'ghp_super_secret_token_999')
+
+  await assert.rejects(
+    () => store.fetch(),
+    (error) => {
+      assert.match(error.message, /remoteUrl/)
+      return true
+    }
+  )
+})
+
+test('fetch sem token e sem remoteUrl não lança pelo motivo de URL ausente (caminho do credential helper)', async (t) => {
+  const dir = await tmpHome(t)
+  const store = new GitStore(dir)
+
+  await assert.rejects(
+    () => store.fetch(),
+    (error) => {
+      assert.equal(/remoteUrl/.test(error.message ?? ''), false)
+      return true
+    }
+  )
+})
+
+test('FakeGitStore seeda estado via options bag (regressão do construtor posicional)', async () => {
+  const fake = new FakeGitStore({ head: 'zzz999' })
+  assert.equal(await fake.head(), 'zzz999')
 })
