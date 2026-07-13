@@ -14,16 +14,18 @@ function settingsFile(homeDir) {
 }
 
 /**
- * Lê o fragmento do hook e monta um diff legível do que será injetado.
- * O comando `add` mostra esse diff e pede confirmação antes de chamar `installHook`.
+ * Lê o fragmento do hook e monta um diff legível das entradas afetadas.
+ * `add` mostra esse diff com `+` antes de `installHook`; `remove`, com `-`
+ * antes de tirar as entradas do settings.json.
  * @param {string} homeDir
  * @param {import('./library.js').Artifact} artifact
+ * @param {'+'|'-'} [sign] sinal de cada linha do diff
  * @returns {Promise<{ fragment: { hooks: Record<string, object[]> }, diff: string }>}
  */
-export async function previewHook(homeDir, artifact) {
+export async function previewHook(homeDir, artifact, sign = '+') {
   const fragment = await readFragment(artifact)
   const lines = Object.entries(fragment.hooks).flatMap(([event, entries]) =>
-    entries.map((entry) => `  + ${event}: ${JSON.stringify(entry)}`),
+    entries.map((entry) => `  ${sign} ${event}: ${JSON.stringify(entry)}`),
   )
   return { fragment, diff: lines.join('\n') }
 }

@@ -262,6 +262,38 @@ test('runAdd de hook recusado (confirm: false) não toca settings.json', async (
   assert.match(output.join('\n'), /pulado: check-updates/)
 })
 
+test('runRemove de hook recusado (confirm: false) não toca settings.json', async (t) => {
+  const home = await tmpHome(t)
+  await seedHook(home)
+  const settingsFile = path.join(home, '.claude', 'settings.json')
+  await runAdd(home, { _: ['check-updates'] }, { log: () => {}, gitStore: new FakeGitStore(), confirm: async () => true })
+  const before = await readFile(settingsFile, 'utf8')
+  const output = []
+
+  const code = await runRemove(home, { _: ['check-updates'] }, { log: (l) => output.push(l), confirm: async () => false })
+
+  assert.equal(code, 0)
+  assert.equal(await readFile(settingsFile, 'utf8'), before)
+  assert.match(output.join('\n'), /pulado: check-updates/)
+})
+
+test('runRemove de hook confirmado tira só a nossa entrada e mostra o diff', async (t) => {
+  const home = await tmpHome(t)
+  await seedHook(home)
+  const settingsFile = path.join(home, '.claude', 'settings.json')
+  await writeFile(settingsFile, JSON.stringify({ hooks: { SessionStart: [{ command: 'meu-hook' }] } }, null, 2))
+  await runAdd(home, { _: ['check-updates'] }, { log: () => {}, gitStore: new FakeGitStore(), confirm: async () => true })
+  const output = []
+
+  const code = await runRemove(home, { _: ['check-updates'] }, { log: (l) => output.push(l), confirm: async () => true })
+
+  assert.equal(code, 0)
+  assert.match(output.join('\n'), /- SessionStart:.*aec-skills status/)
+  const settings = JSON.parse(await readFile(settingsFile, 'utf8'))
+  assert.deepEqual(settings.hooks.SessionStart, [{ command: 'meu-hook' }])
+  assert.deepEqual(await readInstalled(home), [])
+})
+
 test('runUninstall tira o hook do settings.json antes de apagar o store', async (t) => {
   const home = await tmpHome(t)
   await seedHook(home)
