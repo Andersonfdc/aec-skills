@@ -50,8 +50,9 @@ async function readSkills(dir) {
       kind: 'skill',
       name,
       sourcePath: path.join(dir, name),
-      ...parsed,
-      errors: validateSkill(parsed.attrs, name),
+      attrs: parsed.attrs,
+      body: parsed.body,
+      errors: parsed.errors ?? validateSkill(parsed.attrs, name),
     })
   }
   return artifacts
@@ -69,8 +70,9 @@ async function readMarkdownDir(dir, kind) {
       kind,
       name,
       sourcePath: path.join(dir, file),
-      ...parsed,
-      errors: kind === 'agent' ? validateAgent(parsed.attrs, file) : [],
+      attrs: parsed.attrs,
+      body: parsed.body,
+      errors: parsed.errors ?? (kind === 'agent' ? validateAgent(parsed.attrs, file) : []),
     })
   }
   return artifacts
@@ -89,13 +91,24 @@ async function readHooks(dir) {
   }))
 }
 
-/** @param {string} file @returns {Promise<{attrs: Record<string, unknown>, body: string}|null>} */
+/**
+ * Lê e parseia um artefato markdown. YAML malformado não é um erro de I/O — vira
+ * um artefato com `errors` preenchido em vez de rejeitar o inventário inteiro.
+ * @param {string} file
+ * @returns {Promise<{attrs: Record<string, unknown>, body: string, errors?: string[]}|null>}
+ */
 async function readArtifactFile(file) {
+  let content
   try {
-    return parseFrontmatter(await readFile(file, 'utf8'))
+    content = await readFile(file, 'utf8')
   } catch (error) {
     if (error.code === 'ENOENT') return null
     throw error
+  }
+  try {
+    return parseFrontmatter(content)
+  } catch (error) {
+    return { attrs: {}, body: '', errors: [`${file}: ${error.message}`] }
   }
 }
 

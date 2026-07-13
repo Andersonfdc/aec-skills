@@ -59,3 +59,36 @@ test('readLibrary devolve lista vazia num repo sem artefatos', async (t) => {
   const repo = await tmpHome(t)
   assert.deepEqual(await readLibrary(repo), [])
 })
+
+test('readLibrary encontra hooks com sourcePath de diretório', async (t) => {
+  const repo = await tmpHome(t)
+  await mkdir(path.join(repo, 'hooks', 'check-updates'), { recursive: true })
+  await writeFile(path.join(repo, 'hooks', 'check-updates', 'hook.json'), '{}')
+
+  const hook = findArtifact(await readLibrary(repo), 'check-updates')
+  assert.equal(hook.kind, 'hook')
+  assert.equal(hook.sourcePath, path.join(repo, 'hooks', 'check-updates'))
+})
+
+test('readLibrary sobrevive a YAML malformado sem derrubar o inventário', async (t) => {
+  const repo = await tmpHome(t)
+  await seedRepo(repo)
+  await mkdir(path.join(repo, 'skills', 'quebrada'), { recursive: true })
+  await writeFile(path.join(repo, 'skills', 'quebrada', 'SKILL.md'), '---\nname: [unterminated\n---\nbody\n')
+
+  const artifacts = await readLibrary(repo)
+  assert.ok(findArtifact(artifacts, 'code-review'), 'skill válida deve sobreviver')
+
+  const broken = findArtifact(artifacts, 'quebrada')
+  assert.ok(broken.errors.length > 0)
+  assert.match(broken.errors.join(' '), /quebrada/)
+})
+
+test('readLibrary reporta erro de validação de agent sem lançar', async (t) => {
+  const repo = await tmpHome(t)
+  await mkdir(path.join(repo, 'agents'), { recursive: true })
+  await writeFile(path.join(repo, 'agents', 'sem-descricao.md'), '---\nname: sem-descricao\n---\nCorpo\n')
+
+  const agent = findArtifact(await readLibrary(repo), 'sem-descricao')
+  assert.ok(agent.errors.length > 0)
+})
