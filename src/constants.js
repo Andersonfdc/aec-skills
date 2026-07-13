@@ -7,19 +7,11 @@
 export const CLI_INVOCATION = 'npx github:Andersonfdc/aec-skills'
 
 /**
- * URL padrão da biblioteca: o CLI e a biblioteca vivem no mesmo repositório.
- */
-export const DEFAULT_REMOTE_URL = 'https://github.com/Andersonfdc/aec-skills.git'
-
-/**
- * Client ID do OAuth App usado no device flow. NÃO é um segredo: o device flow
- * existe justamente para clientes públicos, que não conseguem guardar um
- * client_secret — o GitHub nunca pede um aqui.
+ * A biblioteca vive em OUTRO repositório, privado — este, o do CLI, é público.
  *
- * Vazio significa "não registrado ainda": nesse caso o menu de login esconde a
- * opção de navegador e oferece só PAT e gh CLI.
- *
- * Para preencher: https://github.com/settings/applications/new → marque
- * "Enable Device Flow" → copie o Client ID.
+ * Tem que ser assim: `npx github:...` clona este repositório para poder rodar.
+ * Se ele fosse privado, quem não tem acesso não baixaria nem o CLI, e morreria
+ * antes de chegar à tela onde colaria o token. Alguma coisa precisa ser pública,
+ * e o CLI é a parte que não guarda segredo nenhum.
  */
-export const OAUTH_CLIENT_ID = ''
+export const DEFAULT_REMOTE_URL = 'https://github.com/Andersonfdc/aec-skills-library.git'

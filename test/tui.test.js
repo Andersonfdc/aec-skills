@@ -2,13 +2,13 @@ import test from 'node:test'
 import assert from 'node:assert/strict'
 import { newMenu, applyKey, renderMenu, chosenNames } from '../src/tui.js'
 
-/** @param {object} [opts] @returns {import('../src/tui.js').MenuState} */
-function menu(opts) {
+/** @returns {import('../src/tui.js').MenuState} */
+function menu() {
   return newMenu([
     { name: 'alfa', kind: 'skill', description: 'primeira' },
     { name: 'beta', kind: 'agent', description: 'segunda' },
     { name: 'gama', kind: 'hook', description: '' },
-  ], opts)
+  ])
 }
 
 test('newMenu começa no topo, sem nada marcado', () => {
@@ -129,27 +129,5 @@ test('nenhuma linha passa da largura do terminal', () => {
   assert.match(lines.find((l) => l.includes('hello-aec')), /…$/)
 })
 
-test('modo single: a seleção é o cursor, e só um nome sai', () => {
-  let state = menu({ single: true })
-  state = applyKey(state, { name: 'down' }).state
 
-  assert.deepEqual(chosenNames(state), ['beta'])
-})
 
-test('modo single: space e a não marcam nada', () => {
-  let state = menu({ single: true })
-  state = applyKey(state, { name: 'space' }).state
-  state = applyKey(state, { name: 'a' }).state
-
-  assert.deepEqual([...state.selected], [])
-  assert.deepEqual(chosenNames(state), ['alfa'])
-})
-
-test('modo single: render usa radio e esconde os atalhos de marcação', () => {
-  const out = renderMenu(menu({ single: true }), { title: 'Como autenticar?' })
-
-  assert.match(out, /^>\s+\(•\) alfa/m)
-  assert.match(out, /^\s+\( \) beta/m)
-  assert.doesNotMatch(out, /<espaço>/)
-  assert.match(out, /<enter> escolhe/)
-})

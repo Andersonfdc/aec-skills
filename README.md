@@ -1,22 +1,23 @@
 # aec-skills
 
 `aec-skills` distribui uma biblioteca privada de skills, agents, commands e hooks para
-múltiplos harnesses de IA a partir de um único repositório git. Um `login` clona a
-biblioteca e um `add` liga (symlink) cada artefato no formato esperado por cada harness
-instalado na máquina.
+múltiplos harnesses de IA a partir de um repositório git. Um `login` clona a biblioteca
+e um `add` liga (symlink) cada artefato no formato esperado por cada harness instalado
+na máquina.
 
 ## Instalação e uso
 
-Não há publicação no npm: o `npx` instala o CLI direto deste repositório, usando a
-credencial git que você já tem.
+Este repositório é **público** e contém apenas o CLI. A biblioteca — as skills, agents,
+commands e hooks — vive num repositório **privado** separado, que o CLI clona depois de
+autenticar.
 
 ```bash
 npx github:Andersonfdc/aec-skills
 ```
 
-Sem argumento nenhum, abre o instalador interativo: faz o login se ainda não houver
-store, lista a biblioteca num menu (`<espaço>` marca, `<a>` marca tudo, `<enter>`
-instala, `<q>` sai) e instala o que você escolheu nos harnesses detectados.
+Sem argumento nenhum, abre o instalador interativo: autentica se ainda não houver store,
+lista a biblioteca num menu (`<espaço>` marca, `<a>` marca tudo, `<enter>` instala, `<q>`
+sai) e instala o que você escolheu nos harnesses detectados.
 
 Fora de um TTY — num pipe, num script, na CI — não há como desenhar o menu, então os
 comandos continuam disponíveis um a um:
@@ -26,9 +27,12 @@ npx github:Andersonfdc/aec-skills login
 npx github:Andersonfdc/aec-skills add hello-aec
 ```
 
-O CLI e a biblioteca vivem no mesmo repositório: `src/` é o código, e `skills/`,
-`agents/`, `commands/` e `hooks/` são o conteúdo distribuído. Publicar uma skill nova é
-um commit — não há índice, CI nem `npm publish`.
+### Por que o CLI é público e a biblioteca não
+
+`npx github:...` faz um `git clone` deste repositório para poder rodar. Se ele fosse
+privado, quem não tem acesso não baixaria nem o CLI — morreria no `Authentication
+failed` antes de chegar à tela onde colaria o token. Alguma coisa precisa ser pública, e
+o CLI é a parte que não guarda segredo nenhum.
 
 ### Autenticação
 
@@ -36,28 +40,38 @@ O acesso é resolvido nesta ordem, e quem tem qualquer uma das três primeiras f
 nunca vê um prompt:
 
 1. o token já salvo em `~/.aec-skills/config.json` (de um login anterior)
-2. o `gh` CLI, se estiver autenticado
+2. o `gh` CLI, se estiver autenticado — é o caminho do mantenedor
 3. a variável de ambiente `GITHUB_TOKEN`
 
-Sem nenhuma delas, num terminal, o instalador pergunta **como** autenticar:
+Sem nenhuma delas, o CLI pede o **token de acesso à biblioteca**: o token que o mantenedor
+distribui, e não um token da conta de quem instala. Num terminal a digitação não aparece
+na tela; num pipe ou na CI, o token é lido do stdin.
 
-| Método | O que acontece |
-|---|---|
-| Navegador | Device flow do GitHub: abre `github.com/login/device`, você digita um código curto e autoriza. Sem token para gerenciar. |
-| Personal Access Token | Mostra o link já com o escopo `repo` pré-selecionado e lê o token colado — a digitação não aparece na tela. |
-| `gh` CLI | Diz o comando a rodar (`gh auth login`) e sai. |
+O token da conta do usuário não serviria. As contas são empresariais (Enterprise Managed
+Users) e o GitHub não permite adicioná-las como colaboradoras de um repositório privado
+fora da empresa delas — um token pessoal delas daria 404 no clone.
 
-Num pipe ou na CI não há como desenhar o menu: o CLI lê o PAT direto do stdin.
+O token nunca é gravado em `.git/config`, nunca vai na linha de comando e nunca é
+impresso em log, erro ou stack trace. O `config.json` é gravado com permissão `0600`.
 
-O token nunca é gravado em `.git/config`, nem impresso em log, erro ou stack trace.
-`config.json` é gravado com permissão `0600`.
+### O token distribuído
 
-O device flow usa um OAuth App cujo `client_id` fica em claro em `src/constants.js` —
-isso é correto, não um vazamento: o device flow existe justamente para clientes
-públicos, que não conseguem guardar um `client_secret`, e o GitHub nunca pede um aqui.
-Enquanto a constante estiver vazia, o menu esconde a opção de navegador.
+Gere um **fine-grained PAT**, nunca um clássico: um PAT clássico com escopo `repo` dá
+leitura e escrita em *todos* os seus repositórios, e você estaria entregando isso a cada
+usuário.
 
-### Estrutura da biblioteca
+- **Repository access:** apenas `aec-skills-library`
+- **Permissions:** `Contents: Read-only`
+- **Expiration:** o menor prazo que você tolere rodar
+
+É um segredo compartilhado: se vazar, o conteúdo da biblioteca vaza — só leitura, só esse
+repositório. Não há rastro de quem usou. A rotação é manual: gere um token novo e
+redistribua.
+
+## A biblioteca
+
+Vive em `Andersonfdc/aec-skills-library` (privado). Publicar uma skill nova é um commit
+lá — não há índice, CI nem `npm publish`.
 
 ```
 skills/<nome>/SKILL.md      frontmatter: name (= nome da pasta), description
@@ -71,7 +85,7 @@ hooks/<nome>/hook.json      fragmento injetado no settings.json do Claude Code
 | Comando | Descrição |
 |---|---|
 | `install` | instalador interativo — é o padrão quando o CLI roda sem comando num terminal |
-| `login [url]` | autentica e clona a biblioteca para `~/.aec-skills` (sem `url`, usa este repositório) |
+| `login [url]` | autentica e clona a biblioteca para `~/.aec-skills` (sem `url`, usa a biblioteca padrão) |
 | `list` | lista as skills, agents, commands e hooks disponíveis na biblioteca |
 | `add <nome...>` | instala os artefatos pedidos nos harnesses detectados (`--all` instala tudo) |
 | `remove <nome...>` | desinstala os artefatos pedidos |
