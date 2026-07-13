@@ -8,11 +8,15 @@ import { storePaths } from '../paths.js'
  *
  * Constrói sua própria `GitStore` em vez de usar `deps.gitStore`: o token só
  * é conhecido depois de `resolveToken`, e `GitStore` exige token+remoteUrl no
- * construtor (contrato de segurança — ver `git-store.js`).
+ * construtor (contrato de segurança — ver `git-store.js`). `deps.GitStoreClass`
+ * permite injetar uma implementação fake nos testes; em produção cai na
+ * `GitStore` real. `deps` também é repassado como `io` para `resolveToken` —
+ * seus campos opcionais (`readGhToken`, `input`, `output`) permitem testar
+ * sem chamar o `gh` CLI real nem prompts interativos.
  *
  * @param {string} homeDir
  * @param {{ _?: string[] }} args primeiro item: a URL do repositório
- * @param {{ log: (line: string) => void, env: NodeJS.ProcessEnv }} deps
+ * @param {{ log: (line: string) => void, env: NodeJS.ProcessEnv, GitStoreClass?: new (repoDir: string, token?: string|null, remoteUrl?: string|null) => import('../git-store.js').GitStore, readGhToken?: () => Promise<string|null>, input?: NodeJS.ReadableStream, output?: NodeJS.WritableStream }} deps
  * @returns {Promise<number>}
  */
 export async function runLogin(homeDir, args, deps) {
@@ -23,9 +27,10 @@ export async function runLogin(homeDir, args, deps) {
     return 1
   }
 
-  const token = await resolveToken(deps.env)
+  const token = await resolveToken(deps.env, deps)
   const { repo } = storePaths(homeDir)
-  const gitStore = new GitStore(repo, token, remoteUrl)
+  const StoreCtor = deps.GitStoreClass ?? GitStore
+  const gitStore = new StoreCtor(repo, token, remoteUrl)
 
   if (await gitStore.isClone()) {
     deps.log('biblioteca já clonada — rode `npx aec-skills update` para atualizar')
