@@ -45,3 +45,11 @@ test('validateAgent exige description', () => {
 test('validateAgent aceita agent sem tools', () => {
   assert.deepEqual(validateAgent({ name: 'reviewer', description: 'Revisa.' }, 'reviewer.md'), [])
 })
+
+// Regressão: o teto de 1024 da skill era aplicado ao agent também, e barrava o
+// `security-auditor` da biblioteca real (3016 chars) — descrição com blocos
+// <example> é padrão em agent, e o próprio Claude Code carrega a dele sem reclamar.
+test('validateAgent não impõe teto de tamanho na description', () => {
+  const attrs = { name: 'auditor', description: 'x'.repeat(3016) }
+  assert.deepEqual(validateAgent(attrs, 'auditor.md'), [])
+})

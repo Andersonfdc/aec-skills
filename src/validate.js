@@ -21,12 +21,21 @@ export function validateSkill(attrs, dirName) {
 
 /**
  * Valida o frontmatter de um agent.
+ *
+ * Sem teto de tamanho na `description`, ao contrário da skill: o limite de 1024 é
+ * documentado para skills, e aplicá-lo a agents rejeitava conteúdo que os harnesses
+ * aceitam. Um agent com blocos `<example>` na descrição — padrão comum, e o que o
+ * próprio Claude Code carrega — passa fácil dos 3000 caracteres.
  * @param {Record<string, unknown>} attrs
  * @param {string} fileName nome do arquivo, para a mensagem de erro
  * @returns {string[]}
  */
 export function validateAgent(attrs, fileName) {
-  return checkDescription(attrs.description, `${fileName}: `)
+  const errors = []
+  if (typeof attrs.description !== 'string' || attrs.description.length === 0) {
+    errors.push(`${fileName}: campo "description" é obrigatório`)
+  }
+  return errors
 }
 
 /** @param {Record<string, unknown>} attrs @returns {string[]} */
