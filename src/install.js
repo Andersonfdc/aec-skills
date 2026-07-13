@@ -2,8 +2,9 @@ import { mkdir, readFile, writeFile } from 'node:fs/promises'
 import path from 'node:path'
 import { HARNESSES } from './harness.js'
 import { linkPath, unlinkPath, DestinationOccupiedError } from './linker.js'
-import { readInstalled, writeInstalled } from './state.js'
+import { readInstalled, writeInstalled, upsertInstalled } from './state.js'
 import { mergeTextBlock } from './merge-block.js'
+import { removeHookFragment } from './hooks.js'
 import { storePaths } from './paths.js'
 
 /**
@@ -52,12 +53,17 @@ export async function installArtifact(homeDir, artifact, harnesses, sha) {
     }
   }
 
-  await appendInstalled(homeDir, result.installed)
+  await upsertInstalled(homeDir, result.installed)
   return result
 }
 
 /**
  * Remove todos os destinos de um artefato e o retira de installed.json.
+ *
+ * Entrada de hook não tem destino próprio: seu `dest` é o settings.json do
+ * usuário, que nunca pode ser apagado. Ela é desfeita retirando do arquivo o
+ * fragmento registrado na própria entrada — sem ler o repo, que o `uninstall`
+ * apaga logo em seguida.
  * @param {string} homeDir
  * @param {string} name
  * @returns {Promise<number>} quantos destinos foram removidos
@@ -68,6 +74,12 @@ export async function uninstallArtifact(homeDir, name) {
 
   let removed = 0
   for (const entry of mine) {
+    if (entry.kind === 'hook') {
+      if (!entry.fragment) continue
+      await removeHookFragment(homeDir, entry.fragment)
+      removed += 1
+      continue
+    }
     const source = resolveTargetFromEntry(homeDir, entry)
     if (await unlinkPath(entry.dest, source, entry.mode)) removed += 1
   }
@@ -130,18 +142,6 @@ function resolveTarget(homeDir, artifact, harness) {
  */
 function resolveTargetFromEntry(homeDir, entry) {
   return resolveTarget(homeDir, { kind: entry.kind, name: entry.name }, entry.harness).source
-}
-
-/**
- * @param {string} homeDir
- * @param {import('./state.js').InstalledEntry[]} added
- * @returns {Promise<void>}
- */
-async function appendInstalled(homeDir, added) {
-  if (added.length === 0) return
-  const current = await readInstalled(homeDir)
-  const isNew = (e) => !added.some((a) => a.dest === e.dest)
-  await writeInstalled(homeDir, [...current.filter(isNew), ...added])
 }
 
 /** @param {string} file @returns {Promise<string>} */

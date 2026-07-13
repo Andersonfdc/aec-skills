@@ -37,7 +37,7 @@ export async function runAdd(homeDir, args, deps) {
   for (const artifact of wanted) {
     if (artifact.kind === 'hook') {
       if (!(await confirmHook(homeDir, artifact, deps))) continue
-      await installHook(homeDir, artifact)
+      await installHook(homeDir, artifact, sha)
       deps.log(`✓ ${artifact.name} (hook) instalado no claude`)
       continue
     }

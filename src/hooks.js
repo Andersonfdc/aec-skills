@@ -3,9 +3,15 @@ import { randomBytes } from 'node:crypto'
 import path from 'node:path'
 import { HARNESSES } from './harness.js'
 import { mergeJsonHooks, removeJsonHooks } from './merge-block.js'
+import { upsertInstalled } from './state.js'
 
 /** Hooks só existem no Claude Code. */
 const HOOK_HARNESS = 'claude'
+
+/** @param {string} homeDir @returns {string} */
+function settingsFile(homeDir) {
+  return path.join(HARNESSES[HOOK_HARNESS].root(homeDir), 'settings.json')
+}
 
 /**
  * Lê o fragmento do hook e monta um diff legível do que será injetado.
@@ -23,33 +29,60 @@ export async function previewHook(homeDir, artifact) {
 }
 
 /**
- * Injeta o hook no settings.json do Claude Code. Faz backup antes de escrever e
- * preserva tudo o que já estava no arquivo.
+ * Injeta o hook no settings.json do Claude Code e registra a instalação em
+ * installed.json. Faz backup antes de escrever e preserva tudo o que já estava
+ * no arquivo.
+ *
+ * A entrada carrega o próprio fragmento aplicado. É o que permite ao `uninstall`
+ * tirar o hook do settings.json ANTES de apagar o store: depois do `rm`, o
+ * `hook.json` do repo já não existe, e um hook órfão apontando para um script
+ * dentro do store apagado dispararia em toda sessão, sem nada que o removesse.
+ * @param {string} homeDir
+ * @param {import('./library.js').Artifact} artifact
+ * @param {string} [sha] SHA do store no momento da instalação
+ * @returns {Promise<void>}
+ */
+export async function installHook(homeDir, artifact, sha = 'desconhecido') {
+  const fragment = await readFragment(artifact)
+  await updateSettings(homeDir, (settings) => mergeJsonHooks(settings, fragment))
+  await upsertInstalled(homeDir, [{
+    name: artifact.name,
+    kind: 'hook',
+    harness: HOOK_HARNESS,
+    dest: settingsFile(homeDir),
+    mode: 'merge',
+    sha,
+    fragment,
+  }])
+}
+
+/**
+ * Remove do settings.json exatamente as entradas deste hook, lendo o fragmento
+ * do repo. Não mexe em installed.json — quem cuida disso é `uninstallArtifact`.
  * @param {string} homeDir
  * @param {import('./library.js').Artifact} artifact
  * @returns {Promise<void>}
  */
-export async function installHook(homeDir, artifact) {
-  const fragment = await readFragment(artifact)
-  await updateSettings(homeDir, (settings) => mergeJsonHooks(settings, fragment))
+export async function uninstallHook(homeDir, artifact) {
+  await removeHookFragment(homeDir, await readFragment(artifact))
 }
 
 /**
- * Remove do settings.json exatamente as entradas deste hook.
+ * Remove do settings.json exatamente as entradas de um fragmento já conhecido —
+ * sem tocar no repo, que pode já ter sido apagado (ver `installHook`).
  *
  * O casamento com o que já está no arquivo é por igualdade profunda, não por
  * proveniência (ver `removeJsonHooks` em merge-block.js): se o usuário tiver
  * escrito, por conta própria, uma entrada byte-idêntica à nossa, ela também é
  * removida. Não há campo marcador para diferenciar — injetar um exigiria
  * confirmar que o Claude Code tolera campos desconhecidos num hook, o que não
- * está verificado. O chamador (`add`, Task 15) deve mostrar ao usuário o que
- * será removido antes de chamar esta função.
+ * está verificado. O chamador deve mostrar ao usuário o que será removido antes
+ * de chamar esta função (é o que `remove` faz, via `previewHook`).
  * @param {string} homeDir
- * @param {import('./library.js').Artifact} artifact
+ * @param {{ hooks: Record<string, object[]> }} fragment
  * @returns {Promise<void>}
  */
-export async function uninstallHook(homeDir, artifact) {
-  const fragment = await readFragment(artifact)
+export async function removeHookFragment(homeDir, fragment) {
   await updateSettings(homeDir, (settings) => removeJsonHooks(settings, fragment))
 }
 
@@ -65,7 +98,7 @@ export async function uninstallHook(homeDir, artifact) {
  * @returns {Promise<void>}
  */
 async function updateSettings(homeDir, transform) {
-  const file = path.join(HARNESSES[HOOK_HARNESS].root(homeDir), 'settings.json')
+  const file = settingsFile(homeDir)
   await mkdir(path.dirname(file), { recursive: true })
 
   const raw = await readFileOrNull(file)

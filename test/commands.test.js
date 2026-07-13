@@ -262,6 +262,21 @@ test('runAdd de hook recusado (confirm: false) não toca settings.json', async (
   assert.match(output.join('\n'), /pulado: check-updates/)
 })
 
+test('runUninstall tira o hook do settings.json antes de apagar o store', async (t) => {
+  const home = await tmpHome(t)
+  await seedHook(home)
+  const settingsFile = path.join(home, '.claude', 'settings.json')
+  await writeFile(settingsFile, JSON.stringify({ hooks: { SessionStart: [{ command: 'meu-hook' }] } }, null, 2))
+  await runAdd(home, { _: ['check-updates'] }, { log: () => {}, gitStore: new FakeGitStore(), confirm: async () => true })
+
+  const code = await runUninstall(home, { yes: true }, { log: () => {}, gitStore: new FakeGitStore() })
+
+  assert.equal(code, 0)
+  const settings = JSON.parse(await readFile(settingsFile, 'utf8'))
+  assert.deepEqual(settings.hooks.SessionStart, [{ command: 'meu-hook' }])
+  await assert.rejects(() => access(storePaths(home).store))
+})
+
 test('runAdd de hook confirmado (confirm: true) grava e preserva o settings existente', async (t) => {
   const home = await tmpHome(t)
   await seedHook(home)

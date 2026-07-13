@@ -7,9 +7,10 @@ import { storePaths } from './paths.js'
  * @property {string} name
  * @property {'skill'|'agent'|'command'|'hook'} kind
  * @property {import('./harness.js').HarnessId} harness
- * @property {string} dest caminho criado no harness
- * @property {'link'|'copy'} mode como foi criado — `copy` precisa ser removido explicitamente
+ * @property {string} dest caminho criado no harness; no hook, o próprio settings.json
+ * @property {'link'|'copy'|'merge'} mode como foi criado — `copy` precisa ser removido explicitamente; `merge` é edição dentro de um arquivo do usuário, nunca apagável
  * @property {string} sha SHA do store no momento da instalação
+ * @property {{ hooks: Record<string, object[]> }} [fragment] só em `kind: 'hook'` — o fragmento aplicado, guardado aqui para que `uninstall` consiga desfazê-lo DEPOIS de o store (e o repo) já terem sido apagados
  */
 
 /**
@@ -45,6 +46,24 @@ export async function readInstalled(homeDir) {
  */
 export async function writeInstalled(homeDir, entries) {
   await writeJson(storePaths(homeDir).installedFile, entries, 0o644)
+}
+
+/**
+ * Insere ou substitui entradas em installed.json, preservando as demais.
+ *
+ * Duas entradas são a mesma quando coincidem name+harness+dest. `dest` sozinho
+ * não serve: todo hook do Claude Code tem o mesmo `dest` (o settings.json), e
+ * chavear só por ele faria um hook expulsar o outro do registro.
+ * @param {string} homeDir
+ * @param {InstalledEntry[]} added
+ * @returns {Promise<void>}
+ */
+export async function upsertInstalled(homeDir, added) {
+  if (added.length === 0) return
+  const key = (e) => `${e.name}|${e.harness}|${e.dest}`
+  const replaced = new Set(added.map(key))
+  const current = await readInstalled(homeDir)
+  await writeInstalled(homeDir, [...current.filter((e) => !replaced.has(key(e))), ...added])
 }
 
 /**
