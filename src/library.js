@@ -60,7 +60,7 @@ async function readSkills(dir) {
 
 /** @param {string} dir @param {'agent'|'command'} kind @returns {Promise<Artifact[]>} */
 async function readMarkdownDir(dir, kind) {
-  const files = (await listFiles(dir)).filter((f) => f.endsWith('.md'))
+  const files = (await listFiles(dir)).filter((f) => f.endsWith('.md') && f.toLowerCase() !== 'readme.md')
   const artifacts = []
   for (const file of files) {
     const parsed = await readArtifactFile(path.join(dir, file))

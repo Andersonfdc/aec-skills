@@ -92,3 +92,38 @@ test('readLibrary reporta erro de validação de agent sem lançar', async (t) =
   const agent = findArtifact(await readLibrary(repo), 'sem-descricao')
   assert.ok(agent.errors.length > 0)
 })
+
+test('readLibrary ignora README.md em agents/ e commands/', async (t) => {
+  const repo = await tmpHome(t)
+  await seedRepo(repo)
+  await writeFile(path.join(repo, 'agents', 'README.md'), '# Agents\nDocumenta esta pasta.\n')
+  await writeFile(path.join(repo, 'commands', 'README.md'), '# Commands\nDocumenta esta pasta.\n')
+
+  const artifacts = await readLibrary(repo)
+  assert.equal(findArtifact(artifacts, 'README'), undefined)
+  assert.ok(findArtifact(artifacts, 'reviewer'), 'agent real deve continuar no inventário')
+  assert.ok(findArtifact(artifacts, 'deepdive'), 'command real deve continuar no inventário')
+})
+
+test('readLibrary ignora README.md com qualquer capitalização', async (t) => {
+  const repo = await tmpHome(t)
+  await mkdir(path.join(repo, 'agents'), { recursive: true })
+  await writeFile(path.join(repo, 'agents', 'readme.md'), '# Agents\n')
+
+  const artifacts = await readLibrary(repo)
+  assert.equal(findArtifact(artifacts, 'readme'), undefined)
+  assert.equal(artifacts.length, 0)
+})
+
+test('readLibrary mantém agent com frontmatter inválido mesmo ao lado de um README', async (t) => {
+  const repo = await tmpHome(t)
+  await mkdir(path.join(repo, 'agents'), { recursive: true })
+  await writeFile(path.join(repo, 'agents', 'README.md'), '# Agents\n')
+  await writeFile(path.join(repo, 'agents', 'sem-descricao.md'), '---\nname: sem-descricao\n---\nCorpo\n')
+
+  const artifacts = await readLibrary(repo)
+  assert.equal(findArtifact(artifacts, 'README'), undefined)
+  const agent = findArtifact(artifacts, 'sem-descricao')
+  assert.ok(agent, 'agent com erro ainda deve aparecer no inventário')
+  assert.ok(agent.errors.length > 0)
+})
