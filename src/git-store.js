@@ -17,32 +17,51 @@ export class GitStore {
   /**
    * @param {string} repoDir caminho do clone (`~/.aec-skills/repo`)
    * @param {string|null} [token] token de acesso; `null` usa o credential helper do ambiente (ex. `gh`)
+   * @param {string|null} [remoteUrl] URL do remote a que o header de auth fica restrito (ver `#authArgs`)
    */
-  constructor(repoDir, token = null) {
+  constructor(repoDir, token = null, remoteUrl = null) {
     this.repoDir = repoDir
     this.token = token
+    this.remoteUrl = remoteUrl
   }
 
   /**
    * Clona o repositório privado. O token nunca entra na URL — vai via
-   * `-c http.extraHeader`, aplicado só a este processo e nunca gravado em
-   * `.git/config`, então `origin` fica limpo desde a criação.
+   * `-c http.<url>.extraHeader`, restrito à URL clonada, aplicado só a este
+   * processo e nunca gravado em `.git/config`, então `origin` fica limpo
+   * desde a criação. Fixa `remoteUrl` para que `fetch()`/`pull()` reusem o
+   * mesmo escopo sem precisar consultar o git de novo.
    * @param {string} remoteUrl ex. `https://github.com/org/aec-skills-library.git`
    * @returns {Promise<void>}
    */
   async clone(remoteUrl) {
-    const args = [...this.#authArgs(), 'clone', '--depth', '1', remoteUrl, this.repoDir]
+    const args = [...this.#authArgs(remoteUrl), 'clone', '--depth', '1', remoteUrl, this.repoDir]
     await this.#git(args, path.dirname(this.repoDir))
+    this.remoteUrl = remoteUrl
   }
 
   /**
    * Override de credencial por invocação — nunca persiste em `.git/config`.
-   * @returns {string[]} `['-c', 'http.extraHeader=...']` com token, `[]` sem token
+   * Escopado via `http.<url>.extraHeader`, então o header só sai para essa
+   * URL exata; um `origin` reescrito para outro host não recebe o token.
+   * @param {string|null} url URL do remote a que o header fica restrito
+   * @returns {string[]} `['-c', 'http.<url>.extraHeader=...']` com token+url, `[]` caso contrário
    */
-  #authArgs() {
-    if (!this.token) return []
+  #authArgs(url) {
+    if (!this.token || !url) return []
     const basic = Buffer.from(`x-access-token:${this.token}`).toString('base64')
-    return ['-c', `http.extraHeader=Authorization: Basic ${basic}`]
+    return ['-c', `http.${url}.extraHeader=Authorization: Basic ${basic}`]
+  }
+
+  /**
+   * URL do remote a escopar o header de auth: usa a fixada no construtor/
+   * clone; sem ela, lê `origin` do git (não emite header sem URL conhecida —
+   * ver finding de segurança no header unscoped).
+   * @returns {Promise<string>}
+   */
+  async #remoteUrl() {
+    if (this.remoteUrl) return this.remoteUrl
+    return this.#git(['remote', 'get-url', 'origin'])
   }
 
   /**
@@ -65,12 +84,14 @@ export class GitStore {
 
   /** @returns {Promise<void>} */
   async fetch() {
-    await this.#git([...this.#authArgs(), 'fetch', '--quiet', 'origin'])
+    const url = await this.#remoteUrl()
+    await this.#git([...this.#authArgs(url), 'fetch', '--quiet', 'origin'])
   }
 
   /** @returns {Promise<void>} */
   async pull() {
-    await this.#git([...this.#authArgs(), 'pull', '--quiet', '--ff-only', 'origin', 'HEAD'])
+    const url = await this.#remoteUrl()
+    await this.#git([...this.#authArgs(url), 'pull', '--quiet', '--ff-only', 'origin', 'HEAD'])
   }
 
   /** @returns {Promise<string>} SHA curto do HEAD local */

@@ -60,6 +60,24 @@ test('clone nunca grava o token em .git/config', async (t) => {
   assert.equal(config.includes(token), false)
 })
 
+test('authArgs escopa o header http.extraHeader à URL do remote, nunca unscoped', async (t) => {
+  const dir = await tmpHome(t)
+  const token = 'ghp_super_secret_token_789'
+  const remoteUrl = 'https://github.com/org/aec-skills-library.git'
+  // dir existe mas não é um clone git: fetch() falha ao rodar `git fetch`,
+  // expondo o `-c http.<url>.extraHeader=...` montado em error.cmd.
+  const store = new GitStore(dir, token, remoteUrl)
+
+  await assert.rejects(
+    () => store.fetch(),
+    (error) => {
+      assert.match(error.cmd ?? '', new RegExp(`http\\.${remoteUrl.replace(/[.*+?^${}()|[\]\\]/g, '\\$&')}\\.extraHeader=`))
+      assert.equal(/(?<!\.)http\.extraHeader=/.test(error.cmd ?? ''), false)
+      return true
+    }
+  )
+})
+
 test('erro de git não vaza o token nem seu header base64', async (t) => {
   const dir = await tmpHome(t)
   const token = 'ghp_super_secret_token_456'
