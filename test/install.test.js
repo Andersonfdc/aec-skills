@@ -174,14 +174,26 @@ test('uninstallArtifact remove uma instalação em modo copy', async (t) => {
 
 test('syncGeminiContext escreve o bloco marcado sem apagar o conteúdo do usuário', async (t) => {
   const home = await tmpHome(t)
-  await seedStore(home)
+  const { skill, agent } = await seedStore(home)
+  await installArtifact(home, skill, ['claude'], 'abc1234')
   await mkdir(path.join(home, '.gemini'), { recursive: true })
   await writeFile(path.join(home, '.gemini', 'GEMINI.md'), '# Meu contexto pessoal\n')
 
-  await syncGeminiContext(home)
+  await syncGeminiContext(home, [skill, agent])
 
   const content = await readFile(path.join(home, '.gemini', 'GEMINI.md'), 'utf8')
   assert.match(content, /# Meu contexto pessoal/)
   assert.match(content, /aec-skills:start/)
   assert.match(content, /code-review/)
+})
+
+test('syncGeminiContext não anuncia skill que não está instalada', async (t) => {
+  const home = await tmpHome(t)
+  const { skill, agent } = await seedStore(home)
+
+  await syncGeminiContext(home, [skill, agent])
+
+  const content = await readFile(path.join(home, '.gemini', 'GEMINI.md'), 'utf8')
+  assert.ok(!content.includes('code-review'))
+  assert.match(content, /Nenhuma skill instalada/)
 })

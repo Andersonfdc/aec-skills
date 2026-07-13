@@ -52,7 +52,7 @@ export async function runUpdate(homeDir, args, deps) {
     reportUpdate(name, result, deps.log)
   }
 
-  if (harnesses.includes('gemini')) await syncGeminiContext(homeDir)
+  if (harnesses.includes('gemini')) await syncGeminiContext(homeDir, artifacts)
   deps.log(`\nstore em ${sha}`)
   return 0
 }

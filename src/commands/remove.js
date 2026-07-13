@@ -32,7 +32,7 @@ export async function runRemove(homeDir, args, deps) {
   // `mkdir` do ~/.gemini, e como detectHarnesses É "o diretório raiz existe",
   // um `remove` numa máquina sem Gemini criava o diretório e fazia o Gemini
   // passar a ser detectado como alvo para sempre.
-  if ((await detectHarnesses(homeDir)).includes('gemini')) await syncGeminiContextIfPresent(homeDir)
+  if ((await detectHarnesses(homeDir)).includes('gemini')) await syncGeminiContext(homeDir, artifacts)
   return 0
 }
 
@@ -63,13 +63,4 @@ async function removeHook(homeDir, artifact, deps) {
   // que aqui, ao contrário do `uninstall`, ainda está no disco.
   if ((await uninstallArtifact(homeDir, artifact.name)) === 0) await uninstallHook(homeDir, artifact)
   deps.log(`✓ ${artifact.name} (hook) removido`)
-}
-
-/** @param {string} homeDir @returns {Promise<void>} */
-async function syncGeminiContextIfPresent(homeDir) {
-  try {
-    await syncGeminiContext(homeDir)
-  } catch (error) {
-    if (error.code !== 'ENOENT') throw error
-  }
 }

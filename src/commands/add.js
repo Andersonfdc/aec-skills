@@ -52,7 +52,7 @@ export async function runAdd(homeDir, args, deps) {
     reportInstall(artifact, result, deps.log)
   }
 
-  if (harnesses.includes('gemini')) await syncGeminiContext(homeDir)
+  if (harnesses.includes('gemini')) await syncGeminiContext(homeDir, artifacts)
   return 0
 }
 

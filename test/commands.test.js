@@ -264,6 +264,30 @@ test('runAdd de hook recusado (confirm: false) não toca settings.json', async (
   assert.match(output.join('\n'), /pulado: check-updates/)
 })
 
+test('GEMINI.md lista só a skill instalada e encolhe no remove', async (t) => {
+  const home = await tmpHome(t)
+  await seed(home)
+  const { repo } = storePaths(home)
+  await mkdir(path.join(repo, 'skills', 'diagnose'), { recursive: true })
+  await writeFile(
+    path.join(repo, 'skills', 'diagnose', 'SKILL.md'),
+    '---\nname: diagnose\ndescription: Diagnostica.\n---\n# D\n',
+  )
+  await mkdir(path.join(home, '.gemini'), { recursive: true })
+  const geminiFile = path.join(home, '.gemini', 'GEMINI.md')
+
+  await runAdd(home, { _: ['code-review'] }, { log: () => {}, gitStore: new FakeGitStore() })
+
+  const afterAdd = await readFile(geminiFile, 'utf8')
+  assert.match(afterAdd, /code-review/)
+  assert.ok(!afterAdd.includes('diagnose'), 'skill não instalada não entra em todo prompt do Gemini')
+
+  await runRemove(home, { _: ['code-review'] }, { log: () => {} })
+
+  const afterRemove = await readFile(geminiFile, 'utf8')
+  assert.ok(!afterRemove.includes('code-review'))
+})
+
 test('runRemove não cria ~/.gemini numa máquina que não usa Gemini', async (t) => {
   const home = await tmpHome(t)
   await seed(home)

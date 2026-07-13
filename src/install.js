@@ -5,6 +5,7 @@ import { linkPath, unlinkPath, DestinationOccupiedError } from './linker.js'
 import { readInstalled, writeInstalled, upsertInstalled } from './state.js'
 import { mergeTextBlock } from './merge-block.js'
 import { removeHookFragment } from './hooks.js'
+import { toGeminiIndex } from './adapters/gemini-index.js'
 import { storePaths } from './paths.js'
 
 /**
@@ -88,19 +89,28 @@ export async function uninstallArtifact(homeDir, name) {
 }
 
 /**
- * Reescreve o bloco marcado do GEMINI.md com o índice atual de skills.
- * O conteúdo do usuário fora do bloco é preservado.
+ * Reescreve o bloco marcado do GEMINI.md com o índice das skills INSTALADAS —
+ * não com a biblioteca inteira. O conteúdo do usuário fora do bloco é preservado.
+ *
+ * O GEMINI.md entra em todo prompt: é a razão de a ponte ser um índice e não um
+ * `@import` (ver spec, "Skills → Gemini"). Anunciar ali as skills que o usuário
+ * NÃO instalou inverteria esse próprio raciocínio — `add code-review` injetaria
+ * uma linha por skill da biblioteca em cada requisição, e `remove` nunca
+ * encolheria o bloco.
  * @param {string} homeDir
+ * @param {import('./library.js').Artifact[]} artifacts biblioteca completa; o filtro é feito aqui
  * @returns {Promise<void>}
  */
-export async function syncGeminiContext(homeDir) {
-  const { build } = storePaths(homeDir)
-  const index = await readFile(path.join(build, 'gemini', 'index.md'), 'utf8')
+export async function syncGeminiContext(homeDir, artifacts) {
+  const { repo } = storePaths(homeDir)
+  const entries = await readInstalled(homeDir)
+  const installed = new Set(entries.filter((e) => e.kind === 'skill').map((e) => e.name))
+  const skills = artifacts.filter((a) => a.kind === 'skill' && installed.has(a.name))
   const contextFile = HARNESSES.gemini.contextFile(homeDir)
 
   await mkdir(path.dirname(contextFile), { recursive: true })
   const existing = await readFileOrEmpty(contextFile)
-  await writeFile(contextFile, mergeTextBlock(existing, index.trimEnd()))
+  await writeFile(contextFile, mergeTextBlock(existing, toGeminiIndex(skills, repo)))
 }
 
 /**
