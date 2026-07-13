@@ -298,6 +298,73 @@ test('runRemove não cria ~/.gemini numa máquina que não usa Gemini', async (t
   await assert.rejects(() => access(path.join(home, '.gemini')))
 })
 
+/** Semeia uma skill no store, mas SEM ~/.claude — só ~/.gemini, simulando uma máquina só com Gemini. */
+async function seedGeminiOnly(home) {
+  const { repo } = storePaths(home)
+  await mkdir(path.join(repo, 'skills', 'code-review'), { recursive: true })
+  await writeFile(
+    path.join(repo, 'skills', 'code-review', 'SKILL.md'),
+    '---\nname: code-review\ndescription: Revisa código.\n---\n# R\n',
+  )
+  await mkdir(path.join(home, '.gemini'), { recursive: true })
+}
+
+test('runAdd numa máquina só com Gemini registra a skill via índice (a ponte funciona sozinha)', async (t) => {
+  const home = await tmpHome(t)
+  await seedGeminiOnly(home)
+  const output = []
+
+  const code = await runAdd(home, { _: ['code-review'] }, { log: (l) => output.push(l), gitStore: new FakeGitStore() })
+
+  assert.equal(code, 0)
+  assert.match(output.join('\n'), /✓ code-review → gemini \(índice\)/)
+  const entries = await readInstalled(home)
+  assert.equal(entries.length, 1)
+  assert.equal(entries[0].harness, 'gemini')
+  assert.equal(entries[0].kind, 'skill')
+  assert.equal(entries[0].mode, 'index')
+  const geminiContent = await readFile(path.join(home, '.gemini', 'GEMINI.md'), 'utf8')
+  assert.match(geminiContent, /code-review/)
+})
+
+test('runRemove numa máquina só com Gemini encolhe o índice e não apaga o GEMINI.md', async (t) => {
+  const home = await tmpHome(t)
+  await seedGeminiOnly(home)
+  const geminiFile = path.join(home, '.gemini', 'GEMINI.md')
+  await writeFile(geminiFile, '# Meu contexto pessoal\n')
+  await runAdd(home, { _: ['code-review'] }, { log: () => {}, gitStore: new FakeGitStore() })
+  assert.match(await readFile(geminiFile, 'utf8'), /code-review/)
+
+  const code = await runRemove(home, { _: ['code-review'] }, { log: () => {} })
+
+  assert.equal(code, 0)
+  const afterRemove = await readFile(geminiFile, 'utf8')
+  assert.ok(!afterRemove.includes('code-review'))
+  assert.match(afterRemove, /# Meu contexto pessoal/)
+  assert.deepEqual(await readInstalled(home), [])
+})
+
+test('runUninstall --yes numa máquina só com Gemini apaga o store mas NUNCA o GEMINI.md do usuário', async (t) => {
+  const home = await tmpHome(t)
+  await seedGeminiOnly(home)
+  const geminiFile = path.join(home, '.gemini', 'GEMINI.md')
+  await writeFile(geminiFile, '# Meu contexto pessoal\n')
+  await runAdd(home, { _: ['code-review'] }, { log: () => {}, gitStore: new FakeGitStore() })
+
+  const code = await runUninstall(home, { yes: true }, { log: () => {}, gitStore: new FakeGitStore() })
+
+  assert.equal(code, 0)
+  // Mutation-proof: se uninstallArtifact tratasse a entrada 'index' como uma
+  // cópia comum (unlinkPath em modo 'copy' apaga `dest` se existir), o
+  // GEMINI.md do usuário — que É o `dest` de uma entrada 'index' — sumiria
+  // aqui. access() rejeita se o arquivo não existir mais.
+  await access(geminiFile)
+  const content = await readFile(geminiFile, 'utf8')
+  assert.match(content, /# Meu contexto pessoal/)
+  assert.ok(!content.includes('code-review'))
+  await assert.rejects(() => access(storePaths(home).store))
+})
+
 test('runAdd --harness=gemini não cria ~/.claude para instalar um hook', async (t) => {
   const home = await tmpHome(t)
   await seedHook(home)

@@ -8,7 +8,7 @@ import { storePaths } from './paths.js'
  * @property {'skill'|'agent'|'command'|'hook'} kind
  * @property {import('./harness.js').HarnessId} harness
  * @property {string} dest caminho criado no harness; no hook, o próprio settings.json
- * @property {'link'|'copy'|'merge'} mode como foi criado — `copy` precisa ser removido explicitamente; `merge` é edição dentro de um arquivo do usuário, nunca apagável
+ * @property {'link'|'copy'|'merge'|'index'} mode como foi criado — `copy` precisa ser removido explicitamente; `merge` é edição dentro de um arquivo do usuário, nunca apagável; `index` é uma entrada no índice do GEMINI.md (skill em harness `gemini`), sem arquivo próprio
  * @property {string} sha SHA do store no momento da instalação
  * @property {{ hooks: Record<string, object[]> }} [fragment] só em `kind: 'hook'` — o fragmento aplicado, guardado aqui para que `uninstall` consiga desfazê-lo DEPOIS de o store (e o repo) já terem sido apagados
  */

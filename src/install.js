@@ -26,6 +26,14 @@ import { storePaths } from './paths.js'
  * destino e levantaria `DestinationOccupiedError` sobre um arquivo criado por nós.
  * Destino SEM entrada em `installed.json` continua sendo do usuário e é recusado.
  *
+ * Gemini não tem diretório de skills (`HARNESSES.gemini.skillsDir` é `null`) —
+ * a ponte é o índice no GEMINI.md, montado por `syncGeminiContext`. Por isso
+ * `kind: 'skill'` + harness `gemini` não liga arquivo nenhum: só registra a
+ * entrada (`mode: 'index'`, `dest` = o próprio GEMINI.md) para que o índice
+ * saiba que essa skill foi instalada. Sem essa entrada, uma máquina só com
+ * Gemini não tem `installed.json` nenhum e o índice sai vazio — a ponte, que é
+ * a única razão de o Gemini ser um harness suportado, não entrega nada.
+ *
  * @param {string} homeDir
  * @param {import('./library.js').Artifact} artifact
  * @param {import('./harness.js').HarnessId[]} harnesses
@@ -37,6 +45,11 @@ export async function installArtifact(homeDir, artifact, harnesses, sha) {
   const owned = await readInstalled(homeDir)
 
   for (const harness of harnesses) {
+    if (artifact.kind === 'skill' && harness === 'gemini') {
+      const dest = HARNESSES.gemini.contextFile(homeDir)
+      result.installed.push({ name: artifact.name, kind: artifact.kind, harness, dest, mode: 'index', sha })
+      continue
+    }
     const target = resolveTarget(homeDir, artifact, harness)
     if (!target) {
       result.skipped.push({ harness, reason: `${harness} não suporta ${artifact.kind}` })
@@ -78,6 +91,14 @@ export async function uninstallArtifact(homeDir, name) {
     if (entry.kind === 'hook') {
       if (!entry.fragment) continue
       await removeHookFragment(homeDir, entry.fragment)
+      removed += 1
+      continue
+    }
+    // Entrada 'index' não tem arquivo próprio — dest é o GEMINI.md do usuário.
+    // unlinkPath('copy') apaga dest se existir; passar por ali apagaria o
+    // GEMINI.md inteiro. Só cair a entrada (feito abaixo, fora do loop) e
+    // deixar `syncGeminiContext` reescrever o bloco marcado sem essa skill.
+    if (entry.mode === 'index') {
       removed += 1
       continue
     }

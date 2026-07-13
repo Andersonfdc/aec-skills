@@ -103,7 +103,8 @@ async function confirmHook(homeDir, artifact, deps) {
  */
 function reportInstall(artifact, result, log) {
   for (const entry of result.installed) {
-    const note = entry.mode === 'copy' ? ' (cópia — link negado pelo sistema)' : ''
+    const note = entry.mode === 'copy' ? ' (cópia — link negado pelo sistema)'
+      : entry.mode === 'index' ? ' (índice)' : ''
     log(`✓ ${artifact.name} → ${entry.harness}${note}`)
   }
   for (const skip of result.skipped) {
