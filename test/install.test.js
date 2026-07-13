@@ -3,8 +3,9 @@ import assert from 'node:assert/strict'
 import { mkdir, writeFile, readFile, access } from 'node:fs/promises'
 import path from 'node:path'
 import { installArtifact, uninstallArtifact, syncGeminiContext } from '../src/install.js'
-import { readInstalled } from '../src/state.js'
+import { readInstalled, writeInstalled } from '../src/state.js'
 import { storePaths } from '../src/paths.js'
+import { HARNESSES } from '../src/harness.js'
 import { buildDerivatives } from '../src/build.js'
 import { tmpHome } from './helpers/tmp-home.js'
 
@@ -100,6 +101,29 @@ test('uninstallArtifact remove os destinos e limpa installed.json', async (t) =>
   assert.equal(removed, 2)
   assert.deepEqual(await readInstalled(home), [])
   await assert.rejects(() => access(path.join(home, '.claude', 'skills', 'code-review')))
+})
+
+test('uninstallArtifact remove uma instalação em modo copy', async (t) => {
+  const home = await tmpHome(t)
+  await seedStore(home)
+
+  // Computa dest para uma skill 'code-review' no harness 'claude'
+  const dest = path.join(HARNESSES.claude.skillsDir(home), 'code-review')
+
+  // Simula uma cópia de fallback: cria um diretório real com conteúdo
+  await mkdir(dest, { recursive: true })
+  await writeFile(path.join(dest, 'SKILL.md'), '---\nname: code-review\n---\n')
+
+  // Registra a entrada como 'copy' (simulando que linkPath caiu para cópia)
+  await writeInstalled(home, [
+    { name: 'code-review', kind: 'skill', harness: 'claude', dest, mode: 'copy', sha: 'abc1234' },
+  ])
+
+  const removed = await uninstallArtifact(home, 'code-review')
+
+  assert.equal(removed, 1)
+  await assert.rejects(() => access(dest))
+  assert.deepEqual(await readInstalled(home), [])
 })
 
 test('syncGeminiContext escreve o bloco marcado sem apagar o conteúdo do usuário', async (t) => {
