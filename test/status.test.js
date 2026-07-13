@@ -5,6 +5,7 @@ import path from 'node:path'
 import { computeChanges, formatChanges, maybeFetch, runStatus } from '../src/commands/status.js'
 import { writeConfig, readConfig, writeInstalled } from '../src/state.js'
 import { storePaths } from '../src/paths.js'
+import { CLI_INVOCATION } from '../src/constants.js'
 import { FakeGitStore } from './helpers/fake-git-store.js'
 import { tmpHome } from './helpers/tmp-home.js'
 
@@ -101,7 +102,8 @@ test('formatChanges usa os marcadores ~ + e !', () => {
   assert.match(output, /~ code-review/)
   assert.match(output, /\+ security-audit/)
   assert.match(output, /! karpathy/)
-  assert.match(output, /aec-skills update/)
+  assert.ok(output.includes(`${CLI_INVOCATION} update`))
+  assert.equal(output.includes('npx aec-skills'), false)
 })
 
 test('formatChanges informa que está tudo em dia quando não há mudança', () => {
@@ -120,6 +122,8 @@ test('runStatus falha com mensagem clara quando não há store, sem dizer "tudo 
   assert.match(text, /biblioteca vazia.*login/s)
   assert.ok(!text.includes('tudo em dia'))
   assert.ok(!text.includes('git não encontrado'))
+  assert.ok(text.includes(`${CLI_INVOCATION} login`))
+  assert.equal(text.includes('npx aec-skills'), false)
 })
 
 test('maybeFetch busca quando nunca buscou antes', async (t) => {

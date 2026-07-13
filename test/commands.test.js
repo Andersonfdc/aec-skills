@@ -10,6 +10,7 @@ import { runUninstall } from '../src/commands/uninstall.js'
 import { runLogin } from '../src/commands/login.js'
 import { storePaths } from '../src/paths.js'
 import { readInstalled, writeInstalled, readConfig } from '../src/state.js'
+import { CLI_INVOCATION, DEFAULT_REMOTE_URL } from '../src/constants.js'
 import { FakeGitStore } from './helpers/fake-git-store.js'
 import { tmpHome } from './helpers/tmp-home.js'
 
@@ -222,15 +223,48 @@ test('runLogin clona e grava remoteUrl + token no config', async (t) => {
   assert.ok(fake.calls.includes('clone:https://github.com/org/lib.git'))
 })
 
-test('runLogin sem URL e sem remoteUrl salvo pede a URL e não grava nada', async (t) => {
+test('runLogin sem URL e sem config usa a URL padrão da biblioteca e clona', async (t) => {
   const home = await tmpHome(t)
+  const fake = new FakeGitStore({ cloned: false })
   const output = []
 
-  const code = await runLogin(home, { _: [] }, { log: (l) => output.push(l), env: {}, readGhToken: async () => null })
+  const code = await runLogin(
+    home,
+    { _: [] },
+    {
+      log: (l) => output.push(l),
+      env: { GITHUB_TOKEN: 'ghp_url_padrao' },
+      GitStoreClass: gitStoreClassFor(fake),
+      readGhToken: async () => null,
+    },
+  )
 
-  assert.equal(code, 1)
-  assert.match(output.join('\n'), /informe a URL do repositório/)
-  await assert.rejects(() => access(storePaths(home).configFile))
+  assert.equal(code, 0)
+  const config = await readConfig(home)
+  assert.equal(config.remoteUrl, DEFAULT_REMOTE_URL)
+  assert.ok(fake.calls.includes(`clone:${DEFAULT_REMOTE_URL}`))
+})
+
+test('runLogin com URL explícita usa essa URL, não a padrão', async (t) => {
+  const home = await tmpHome(t)
+  const fake = new FakeGitStore({ cloned: false })
+
+  const code = await runLogin(
+    home,
+    { _: ['https://github.com/outra/lib.git'] },
+    {
+      log: () => {},
+      env: { GITHUB_TOKEN: 'ghp_url_explicita' },
+      GitStoreClass: gitStoreClassFor(fake),
+      readGhToken: async () => null,
+    },
+  )
+
+  assert.equal(code, 0)
+  const config = await readConfig(home)
+  assert.equal(config.remoteUrl, 'https://github.com/outra/lib.git')
+  assert.ok(fake.calls.includes('clone:https://github.com/outra/lib.git'))
+  assert.ok(!fake.calls.some((c) => c === `clone:${DEFAULT_REMOTE_URL}`))
 })
 
 test('runLogin não clona de novo quando o store já é um clone', async (t) => {
@@ -267,6 +301,33 @@ test('runLogin nunca imprime o token', async (t) => {
   )
 
   for (const line of output) assert.equal(line.includes(token), false)
+})
+
+test('mensagens de biblioteca vazia e de login usam CLI_INVOCATION, nunca `npx aec-skills` puro', async (t) => {
+  const home = await tmpHome(t)
+  const output = []
+  const log = (l) => output.push(l)
+
+  await runAdd(home, { all: true }, { log, gitStore: new FakeGitStore() })
+  await runList(home, {}, { log })
+  await runUpdate(home, {}, { log, gitStore: new FakeGitStore({ cloned: false }) })
+  // env com GITHUB_TOKEN: sem ele, resolveToken cai no prompt interativo e o teste
+  // trava lendo o stdin real. O que se verifica aqui é a mensagem, não a credencial.
+  const env = { GITHUB_TOKEN: 'ghp_mensagens' }
+  await runLogin(
+    home,
+    { _: [] },
+    { log, env, GitStoreClass: gitStoreClassFor(new FakeGitStore({ cloned: false })), readGhToken: async () => null },
+  )
+  await runLogin(
+    home,
+    { _: [] },
+    { log, env, GitStoreClass: gitStoreClassFor(new FakeGitStore({ cloned: true })), readGhToken: async () => null },
+  )
+
+  const text = output.join('\n')
+  assert.ok(text.includes(CLI_INVOCATION), 'deveria usar o comando npx real, github:Andersonfdc/aec-skills')
+  assert.equal(text.includes('npx aec-skills'), false, 'não deveria sugerir o comando quebrado `npx aec-skills`')
 })
 
 test('runAdd de hook recusado (confirm: false) não toca settings.json', async (t) => {

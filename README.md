@@ -11,7 +11,7 @@ Não há publicação no npm: o `npx` instala o CLI direto deste repositório, u
 credencial git que você já tem.
 
 ```bash
-npx github:Andersonfdc/aec-skills login https://github.com/Andersonfdc/aec-skills.git
+npx github:Andersonfdc/aec-skills login
 npx github:Andersonfdc/aec-skills add hello-aec
 ```
 
@@ -36,7 +36,7 @@ hooks/<nome>/hook.json      fragmento injetado no settings.json do Claude Code
 
 | Comando | Descrição |
 |---|---|
-| `login <url>` | autentica e clona a biblioteca para `~/.aec-skills` |
+| `login [url]` | autentica e clona a biblioteca para `~/.aec-skills` (sem `url`, usa este repositório) |
 | `list` | lista as skills, agents, commands e hooks disponíveis na biblioteca |
 | `add <nome...>` | instala os artefatos pedidos nos harnesses detectados (`--all` instala tudo) |
 | `remove <nome...>` | desinstala os artefatos pedidos |

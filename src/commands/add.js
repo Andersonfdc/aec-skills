@@ -4,6 +4,7 @@ import { resolveHarnesses } from '../harness.js'
 import { buildDerivatives } from '../build.js'
 import { installArtifact, syncGeminiContext } from '../install.js'
 import { previewHook, installHook } from '../hooks.js'
+import { CLI_INVOCATION } from '../constants.js'
 
 /**
  * @param {string} homeDir
@@ -14,7 +15,7 @@ import { previewHook, installHook } from '../hooks.js'
 export async function runAdd(homeDir, args, deps) {
   const artifacts = await readLibrary(storePaths(homeDir).repo)
   if (artifacts.length === 0) {
-    deps.log('biblioteca vazia — rode `npx aec-skills login` para clonar')
+    deps.log(`biblioteca vazia — rode \`${CLI_INVOCATION} login\` para clonar`)
     return 1
   }
 

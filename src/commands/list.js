@@ -1,6 +1,7 @@
 import { readLibrary } from '../library.js'
 import { readInstalled } from '../state.js'
 import { storePaths } from '../paths.js'
+import { CLI_INVOCATION } from '../constants.js'
 
 /**
  * @param {string} homeDir
@@ -11,7 +12,7 @@ import { storePaths } from '../paths.js'
 export async function runList(homeDir, _args, deps) {
   const artifacts = await readLibrary(storePaths(homeDir).repo)
   if (artifacts.length === 0) {
-    deps.log('biblioteca vazia — rode `npx aec-skills login` para clonar')
+    deps.log(`biblioteca vazia — rode \`${CLI_INVOCATION} login\` para clonar`)
     return 1
   }
 

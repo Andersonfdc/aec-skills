@@ -5,6 +5,7 @@ import { installArtifact, syncGeminiContext } from '../install.js'
 import { readInstalled } from '../state.js'
 import { resolveHarnesses } from '../harness.js'
 import { maybeFetch } from './status.js'
+import { CLI_INVOCATION } from '../constants.js'
 
 /**
  * Aplica as atualizações: pull, rebuild dos derivados e religa o que estava instalado.
@@ -20,7 +21,7 @@ export async function runUpdate(homeDir, args, deps) {
   // roda `#git()` com `cwd` ausente e o ENOENT do spawn vira GitNotInstalledError
   // — checar isClone() primeiro troca esse crash enganoso por uma mensagem correta.
   if (!(await deps.gitStore.isClone())) {
-    deps.log('biblioteca vazia — rode `npx aec-skills login` para clonar')
+    deps.log(`biblioteca vazia — rode \`${CLI_INVOCATION} login\` para clonar`)
     return 1
   }
 
@@ -53,7 +54,7 @@ export async function runUpdate(homeDir, args, deps) {
   for (const name of names) {
     const artifact = artifacts.find((a) => a.name === name)
     if (!artifact) {
-      deps.log(`· ${name} não existe mais na biblioteca — rode \`aec-skills remove ${name}\``)
+      deps.log(`· ${name} não existe mais na biblioteca — rode \`${CLI_INVOCATION} remove ${name}\``)
       continue
     }
     const result = await installArtifact(homeDir, artifact, harnesses, sha)

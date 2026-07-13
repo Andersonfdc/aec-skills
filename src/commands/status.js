@@ -1,4 +1,5 @@
 import { readConfig, writeConfig, readInstalled } from '../state.js'
+import { CLI_INVOCATION } from '../constants.js'
 
 const FETCH_INTERVAL_MS = 6 * 60 * 60 * 1000
 
@@ -84,7 +85,7 @@ export function formatChanges(changes) {
     '',
     ...lines,
     '',
-    'Rode `npx aec-skills update` para aplicar.',
+    `Rode \`${CLI_INVOCATION} update\` para aplicar.`,
   ].join('\n')
 }
 
@@ -104,7 +105,7 @@ export async function runStatus(homeDir, gitStore, io = {}) {
   // sem esse guarda, que propagava GitNotInstalledError e o CLI acusava git
   // ausente numa máquina que só nunca rodou `login`.
   if (!(await gitStore.isClone())) {
-    log('biblioteca vazia — rode `npx aec-skills login` para clonar')
+    log(`biblioteca vazia — rode \`${CLI_INVOCATION} login\` para clonar`)
     return 1
   }
   await maybeFetch(homeDir, gitStore, io.now ?? Date.now())
