@@ -26,13 +26,7 @@ export function validateSkill(attrs, dirName) {
  * @returns {string[]}
  */
 export function validateAgent(attrs, fileName) {
-  const errors = []
-  if (typeof attrs.description !== 'string' || attrs.description.length === 0) {
-    errors.push(`${fileName}: campo "description" é obrigatório`)
-  } else if (attrs.description.length > DESCRIPTION_MAX) {
-    errors.push(`${fileName}: "description" tem máximo 1024 caracteres, recebido ${attrs.description.length}`)
-  }
-  return errors
+  return checkDescription(attrs.description, `${fileName}: `)
 }
 
 /** @param {Record<string, unknown>} attrs @returns {string[]} */
@@ -41,11 +35,7 @@ function requireNameAndDescription(attrs) {
   if (typeof attrs.name !== 'string' || attrs.name.length === 0) {
     errors.push('campo "name" é obrigatório')
   }
-  if (typeof attrs.description !== 'string' || attrs.description.length === 0) {
-    errors.push('campo "description" é obrigatório')
-  } else if (attrs.description.length > DESCRIPTION_MAX) {
-    errors.push(`"description" tem máximo 1024 caracteres, recebido ${attrs.description.length}`)
-  }
+  errors.push(...checkDescription(attrs.description, ''))
   return errors
 }
 
@@ -57,6 +47,17 @@ function checkNameShape(name) {
   }
   if (name.length > NAME_MAX) {
     errors.push(`"name" tem máximo 64 caracteres, recebido ${name.length}`)
+  }
+  return errors
+}
+
+/** @param {unknown} description @param {string} prefix @returns {string[]} */
+function checkDescription(description, prefix) {
+  const errors = []
+  if (typeof description !== 'string' || description.length === 0) {
+    errors.push(`${prefix}campo "description" é obrigatório`)
+  } else if (description.length > DESCRIPTION_MAX) {
+    errors.push(`${prefix}"description" tem máximo 1024 caracteres, recebido ${description.length}`)
   }
   return errors
 }
