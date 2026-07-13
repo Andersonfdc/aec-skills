@@ -15,7 +15,7 @@ export class FakeGitStore {
     this.calls = []
   }
 
-  async clone(remoteUrl, _token) { this.calls.push(`clone:${remoteUrl}`); this.state.cloned = true }
+  async clone(remoteUrl) { this.calls.push(`clone:${remoteUrl}`); this.state.cloned = true }
   async fetch() { this.calls.push('fetch') }
   async pull() { this.calls.push('pull'); this.state.head = this.state.remoteHead; this.state.changed = [] }
   async head() { return this.state.head }

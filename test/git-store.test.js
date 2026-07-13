@@ -2,7 +2,7 @@ import { test } from 'node:test'
 import assert from 'node:assert/strict'
 import { execFile } from 'node:child_process'
 import { promisify } from 'node:util'
-import { writeFile } from 'node:fs/promises'
+import { writeFile, readFile } from 'node:fs/promises'
 import path from 'node:path'
 import { GitStore } from '../src/git-store.js'
 import { tmpHome } from './helpers/tmp-home.js'
@@ -45,4 +45,40 @@ test('locallyModified devolve vazio numa árvore limpa', async (t) => {
   await run('git', ['-c', 'user.email=t@t', '-c', 'user.name=t', 'commit', '-qm', 'init'], { cwd: repo })
 
   assert.deepEqual(await new GitStore(repo).locallyModified(), [])
+})
+
+test('clone nunca grava o token em .git/config', async (t) => {
+  const dir = await tmpHome(t)
+  const remoteDir = path.join(dir, 'remote.git')
+  await run('git', ['init', '--bare', '-q', remoteDir])
+
+  const cloneDir = path.join(dir, 'clone')
+  const token = 'ghp_super_secret_token_123'
+  await new GitStore(cloneDir, token).clone(remoteDir)
+
+  const config = await readFile(path.join(cloneDir, '.git', 'config'), 'utf8')
+  assert.equal(config.includes(token), false)
+})
+
+test('erro de git não vaza o token nem seu header base64', async (t) => {
+  const dir = await tmpHome(t)
+  const token = 'ghp_super_secret_token_456'
+  const basic = Buffer.from(`x-access-token:${token}`).toString('base64')
+  const missingRemote = path.join(dir, 'nao-existe')
+  const store = new GitStore(path.join(dir, 'clone'), token)
+
+  await assert.rejects(
+    () => store.clone(missingRemote),
+    (error) => {
+      const serialized = JSON.stringify(error)
+      for (const leak of [token, basic]) {
+        assert.equal((error.message ?? '').includes(leak), false)
+        assert.equal((error.stack ?? '').includes(leak), false)
+        assert.equal((error.cmd ?? '').includes(leak), false)
+        assert.equal((error.stderr ?? '').includes(leak), false)
+        assert.equal(serialized.includes(leak), false)
+      }
+      return true
+    }
+  )
 })

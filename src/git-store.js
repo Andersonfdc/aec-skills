@@ -14,50 +14,63 @@ export class GitNotInstalledError extends Error {
 
 /** Encapsula todas as operações git sobre o clone local. Nenhum outro módulo executa git. */
 export class GitStore {
-  /** @param {string} repoDir caminho do clone (`~/.aec-skills/repo`) */
-  constructor(repoDir) {
+  /**
+   * @param {string} repoDir caminho do clone (`~/.aec-skills/repo`)
+   * @param {string|null} [token] token de acesso; `null` usa o credential helper do ambiente (ex. `gh`)
+   */
+  constructor(repoDir, token = null) {
     this.repoDir = repoDir
+    this.token = token
   }
 
   /**
-   * Clona o repositório privado. O token entra pela URL e NUNCA é logado.
+   * Clona o repositório privado. O token nunca entra na URL — vai via
+   * `-c http.extraHeader`, aplicado só a este processo e nunca gravado em
+   * `.git/config`, então `origin` fica limpo desde a criação.
    * @param {string} remoteUrl ex. `https://github.com/org/aec-skills-library.git`
-   * @param {string} token
    * @returns {Promise<void>}
    */
-  async clone(remoteUrl, token) {
-    const authUrl = remoteUrl.replace('https://', `https://x-access-token:${token}@`)
-    try {
-      await this.#git(['clone', '--depth', '1', authUrl, this.repoDir], path.dirname(this.repoDir))
-    } catch (error) {
-      throw this.#redactToken(error, token)
-    }
-    await this.#git(['remote', 'set-url', 'origin', remoteUrl])
+  async clone(remoteUrl) {
+    const args = [...this.#authArgs(), 'clone', '--depth', '1', remoteUrl, this.repoDir]
+    await this.#git(args, path.dirname(this.repoDir))
+  }
+
+  /**
+   * Override de credencial por invocação — nunca persiste em `.git/config`.
+   * @returns {string[]} `['-c', 'http.extraHeader=...']` com token, `[]` sem token
+   */
+  #authArgs() {
+    if (!this.token) return []
+    const basic = Buffer.from(`x-access-token:${this.token}`).toString('base64')
+    return ['-c', `http.extraHeader=Authorization: Basic ${basic}`]
   }
 
   /**
    * `execFile` embute args/stderr no erro (message, stack, cmd, stdout,
-   * stderr) — sem isso o token vazaria em qualquer falha de clone.
+   * stderr, spawnargs, path) — sem isso o token, ou seu header em base64,
+   * vazaria em qualquer falha de git. No-op sem token configurado.
    * @param {Error} error
-   * @param {string} token
    * @returns {Error}
    */
-  #redactToken(error, token) {
-    const redact = (value) => (typeof value === 'string' ? value.split(token).join('***') : value)
-    for (const field of ['message', 'stack', 'cmd', 'stdout', 'stderr']) {
+  #redactToken(error) {
+    if (!this.token) return error
+    const basic = Buffer.from(`x-access-token:${this.token}`).toString('base64')
+    const redact = (value) => (typeof value === 'string' ? value.split(this.token).join('***').split(basic).join('***') : value)
+    for (const field of ['message', 'stack', 'cmd', 'stdout', 'stderr', 'path']) {
       if (error[field]) error[field] = redact(error[field])
     }
+    if (Array.isArray(error.spawnargs)) error.spawnargs = error.spawnargs.map(redact)
     return error
   }
 
   /** @returns {Promise<void>} */
   async fetch() {
-    await this.#git(['fetch', '--quiet', 'origin'])
+    await this.#git([...this.#authArgs(), 'fetch', '--quiet', 'origin'])
   }
 
   /** @returns {Promise<void>} */
   async pull() {
-    await this.#git(['pull', '--quiet', '--ff-only', 'origin', 'HEAD'])
+    await this.#git([...this.#authArgs(), 'pull', '--quiet', '--ff-only', 'origin', 'HEAD'])
   }
 
   /** @returns {Promise<string>} SHA curto do HEAD local */
@@ -106,7 +119,7 @@ export class GitStore {
       return stdout.replace(/\r?\n$/, '')
     } catch (error) {
       if (error.code === 'ENOENT') throw new GitNotInstalledError()
-      throw error
+      throw this.#redactToken(error)
     }
   }
 }
