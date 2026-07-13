@@ -74,6 +74,16 @@ test('toGeminiIndex devolve aviso quando não há skills', () => {
   assert.match(toGeminiIndex([], '/store/repo'), /Nenhuma skill instalada/)
 })
 
+test('toGeminiIndex normaliza repoDir com separadores Windows para barras', () => {
+  const skills = [{
+    kind: 'skill', name: 'x', sourcePath: 'C:\\Users\\x\\.aec-skills\\repo\\skills\\x',
+    attrs: { name: 'x', description: 'd' }, body: '', errors: [],
+  }]
+  const index = toGeminiIndex(skills, 'C:\\Users\\x\\.aec-skills\\repo')
+  assert.ok(!index.includes('\\'))
+  assert.match(index, /C:\/Users\/x\/\.aec-skills\/repo\/skills\/x\/SKILL\.md/)
+})
+
 test('toGeminiCommand gera TOML com prompt e description', () => {
   const command = {
     kind: 'command', name: 'deepdive', sourcePath: '/x/deepdive.md',
@@ -81,7 +91,7 @@ test('toGeminiCommand gera TOML com prompt e description', () => {
   }
   const toml = toGeminiCommand(command)
   assert.match(toml, /^description = "Análise profunda\."$/m)
-  assert.match(toml, /prompt = """/)
+  assert.match(toml, /prompt = '''/)
   assert.match(toml, /Analise a fundo\./)
 })
 
@@ -91,4 +101,35 @@ test('toGeminiCommand escapa aspas na description', () => {
     attrs: { description: 'Diz "olá".' }, body: 'corpo\n', errors: [],
   }
   assert.match(toGeminiCommand(command), /description = "Diz \\"olá\\"\."/)
+})
+
+test('toGeminiCommand preserva path Windows e regex sem escapar barras', () => {
+  const command = {
+    kind: 'command', name: 'x', sourcePath: '/x.md',
+    attrs: {}, body: 'Leia C:\\Users\\x\\arquivo.md e valide \\d+\\n', errors: [],
+  }
+  const toml = toGeminiCommand(command)
+  assert.match(toml, /prompt = '''/)
+  assert.ok(toml.includes('Leia C:\\Users\\x\\arquivo.md e valide \\d+\\n'))
+})
+
+test('toGeminiCommand não termina a string cedo com """ dentro do corpo', () => {
+  const command = {
+    kind: 'command', name: 'x', sourcePath: '/x.md',
+    attrs: {}, body: 'Exemplo:\n```python\ndef f():\n    """docstring"""\n```\n', errors: [],
+  }
+  const toml = toGeminiCommand(command)
+  assert.match(toml, /prompt = '''/)
+  assert.ok(toml.includes('"""docstring"""'))
+})
+
+test('toGeminiCommand cai para string básica escapada quando o corpo contém \'\'\'', () => {
+  const command = {
+    kind: 'command', name: 'x', sourcePath: '/x.md',
+    attrs: {}, body: "trecho com '''três aspas simples'''\n", errors: [],
+  }
+  const toml = toGeminiCommand(command)
+  assert.match(toml, /prompt = """/)
+  assert.ok(toml.includes("trecho com '''três aspas simples'''"))
+  assert.ok(!toml.includes('\\\''))
 })

@@ -16,7 +16,7 @@ export function toGeminiIndex(skills, repoDir) {
   if (skills.length === 0) return '## Skills disponíveis\n\nNenhuma skill instalada.'
 
   const lines = skills.map((skill) => {
-    const file = path.posix.join(repoDir, 'skills', skill.name, 'SKILL.md')
+    const file = path.join(repoDir, 'skills', skill.name, 'SKILL.md').split(path.sep).join('/')
     return `- **${skill.name}** — ${skill.attrs.description}\n  → \`${file}\``
   })
 
