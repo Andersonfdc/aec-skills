@@ -34,7 +34,7 @@ test('buildDerivatives gera o command TOML do Gemini', async (t) => {
   await buildDerivatives(home, fixtures(repo))
 
   const toml = await readFile(path.join(build, 'gemini', 'commands', 'deepdive.toml'), 'utf8')
-  assert.match(toml, /prompt = ('''|""")/)
+  assert.match(toml, /prompt = '''/)
   assert.match(toml, /Analise\./)
 })
 
