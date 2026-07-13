@@ -78,7 +78,7 @@ export async function runCli(argv, io = {}) {
   // `git remote get-url origin` — ver o contrato de segurança em git-store.js.
   const config = await readConfig(homeDir)
   const gitStore = new GitStore(storePaths(homeDir).repo, config.token ?? null, config.remoteUrl ?? null)
-  const deps = { log, gitStore, env: process.env, confirm: askYesNo }
+  const deps = { log, gitStore, env: process.env, confirm: askYesNo, isTTY: interactive }
 
   try {
     // runStatus tem assinatura (homeDir, gitStore, io); os demais (homeDir, args, deps).

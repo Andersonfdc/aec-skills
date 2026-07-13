@@ -27,9 +27,32 @@ function deps(lines, select) {
     log: (line) => lines.push(line),
     gitStore: new FakeGitStore({ head: 'abc1234' }),
     env: {},
+    isTTY: true,
     select,
   }
 }
+
+// Regressão: o guard de TTY vivia só no caminho "sem comando" do cli.js, então
+// `install` explícito num pipe abria o menu e ficava lendo lixo do stdin.
+test('num pipe, o install recusa em vez de abrir um menu que ninguém pode usar', async (t) => {
+  const home = await tmpHome(t)
+  await seed(home)
+  const lines = []
+  let menuOpened = false
+
+  const code = await runInstall(home, {}, {
+    log: (line) => lines.push(line),
+    gitStore: new FakeGitStore({ head: 'abc1234' }),
+    env: {},
+    isTTY: false,
+    select: async () => { menuOpened = true; return [] },
+  })
+
+  assert.equal(code, 1)
+  assert.equal(menuOpened, false)
+  assert.match(lines.join('\n'), /precisa de um terminal/)
+  assert.match(lines.join('\n'), /add --all/)
+})
 
 test('install imprime o banner', async (t) => {
   const home = await tmpHome(t)
@@ -152,6 +175,7 @@ test('sem store, o install faz login antes de abrir o menu', async (t) => {
     log: (line) => lines.push(line),
     gitStore: new FakeGitStore(),
     env: { GITHUB_TOKEN: 'ghp_teste' },
+    isTTY: true,
     GitStoreClass: Store,
     select: async () => {
       menuOpened = true

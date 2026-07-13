@@ -3,6 +3,7 @@ import { storePaths } from '../paths.js'
 import { resolveHarnesses } from '../harness.js'
 import { selectFromMenu } from '../tui.js'
 import { BANNER } from '../banner.js'
+import { CLI_INVOCATION } from '../constants.js'
 import { runLogin } from './login.js'
 import { runAdd } from './add.js'
 
@@ -15,6 +16,14 @@ import { runAdd } from './add.js'
  * @returns {Promise<number>} exit code
  */
 export async function runInstall(homeDir, args, deps) {
+  // Sem terminal não há como desenhar o menu nem ler as teclas: `install` num
+  // pipe ou na CI leria lixo do stdin em vez de esperar. Sai dizendo o que usar.
+  const isTTY = deps.isTTY ?? process.stdin.isTTY
+  if (!isTTY) {
+    deps.log(`o instalador interativo precisa de um terminal — use \`${CLI_INVOCATION} add <nome>\` ou \`add --all\``)
+    return 1
+  }
+
   deps.log(BANNER)
 
   const repo = storePaths(homeDir).repo
