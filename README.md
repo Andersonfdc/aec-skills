@@ -7,13 +7,30 @@ instalado na máquina.
 
 ## Instalação e uso
 
+Não há publicação no npm: o `npx` instala o CLI direto deste repositório, usando a
+credencial git que você já tem.
+
 ```bash
-npx aec-skills login <url-do-repositorio-git>
+npx github:Andersonfdc/aec-skills login https://github.com/Andersonfdc/aec-skills.git
+npx github:Andersonfdc/aec-skills add hello-aec
 ```
+
+O CLI e a biblioteca vivem no mesmo repositório: `src/` é o código, e `skills/`,
+`agents/`, `commands/` e `hooks/` são o conteúdo distribuído. Publicar uma skill nova é
+um commit — não há índice, CI nem `npm publish`.
 
 O token de acesso é resolvido, nessa ordem: `gh` CLI (se autenticado) → variável de
 ambiente `GITHUB_TOKEN` → prompt interativo (a digitação não é ecoada). O token nunca é
 gravado em `.git/config` nem impresso em log ou erro.
+
+### Estrutura da biblioteca
+
+```
+skills/<nome>/SKILL.md      frontmatter: name (= nome da pasta), description
+agents/<nome>.md            frontmatter: name, description, tools, model
+commands/<nome>.md
+hooks/<nome>/hook.json      fragmento injetado no settings.json do Claude Code
+```
 
 ### Comandos
 
