@@ -1,0 +1,130 @@
+import { copyFile, mkdir, readFile, rename, writeFile } from 'node:fs/promises'
+import { randomBytes } from 'node:crypto'
+import path from 'node:path'
+import { HARNESSES } from './harness.js'
+import { mergeJsonHooks, removeJsonHooks } from './merge-block.js'
+
+/** Hooks só existem no Claude Code. */
+const HOOK_HARNESS = 'claude'
+
+/**
+ * Lê o fragmento do hook e monta um diff legível do que será injetado.
+ * O comando `add` mostra esse diff e pede confirmação antes de chamar `installHook`.
+ * @param {string} homeDir
+ * @param {import('./library.js').Artifact} artifact
+ * @returns {Promise<{ fragment: { hooks: Record<string, object[]> }, diff: string }>}
+ */
+export async function previewHook(homeDir, artifact) {
+  const fragment = await readFragment(artifact)
+  const lines = Object.entries(fragment.hooks).flatMap(([event, entries]) =>
+    entries.map((entry) => `  + ${event}: ${JSON.stringify(entry)}`),
+  )
+  return { fragment, diff: lines.join('\n') }
+}
+
+/**
+ * Injeta o hook no settings.json do Claude Code. Faz backup antes de escrever e
+ * preserva tudo o que já estava no arquivo.
+ * @param {string} homeDir
+ * @param {import('./library.js').Artifact} artifact
+ * @returns {Promise<void>}
+ */
+export async function installHook(homeDir, artifact) {
+  const fragment = await readFragment(artifact)
+  await updateSettings(homeDir, (settings) => mergeJsonHooks(settings, fragment))
+}
+
+/**
+ * Remove do settings.json exatamente as entradas deste hook.
+ *
+ * O casamento com o que já está no arquivo é por igualdade profunda, não por
+ * proveniência (ver `removeJsonHooks` em merge-block.js): se o usuário tiver
+ * escrito, por conta própria, uma entrada byte-idêntica à nossa, ela também é
+ * removida. Não há campo marcador para diferenciar — injetar um exigiria
+ * confirmar que o Claude Code tolera campos desconhecidos num hook, o que não
+ * está verificado. O chamador (`add`, Task 15) deve mostrar ao usuário o que
+ * será removido antes de chamar esta função.
+ * @param {string} homeDir
+ * @param {import('./library.js').Artifact} artifact
+ * @returns {Promise<void>}
+ */
+export async function uninstallHook(homeDir, artifact) {
+  const fragment = await readFragment(artifact)
+  await updateSettings(homeDir, (settings) => removeJsonHooks(settings, fragment))
+}
+
+/**
+ * Lê, transforma e regrava o settings.json: nunca sobrescreve às cegas.
+ * JSON inválido interrompe antes de qualquer escrita ou backup — o arquivo do
+ * usuário permanece intocado e o erro nomeia o arquivo e a causa. Quando o
+ * JSON é válido, o conteúdo anterior vai para `settings.json.bak` (um único
+ * snapshot, sobrescrito a cada instalação — não é histórico) antes da escrita
+ * atômica do novo conteúdo.
+ * @param {string} homeDir
+ * @param {(settings: Record<string, unknown>) => Record<string, unknown>} transform
+ * @returns {Promise<void>}
+ */
+async function updateSettings(homeDir, transform) {
+  const file = path.join(HARNESSES[HOOK_HARNESS].root(homeDir), 'settings.json')
+  await mkdir(path.dirname(file), { recursive: true })
+
+  const raw = await readFileOrNull(file)
+  const settings = raw === null ? {} : parseSettings(raw, file)
+
+  if (raw !== null) await copyFile(file, `${file}.bak`)
+  await writeAtomic(file, `${JSON.stringify(transform(settings), null, 2)}\n`)
+}
+
+/**
+ * @param {string} raw
+ * @param {string} file
+ * @returns {Record<string, unknown>}
+ * @throws {Error} quando `raw` não é JSON válido
+ */
+function parseSettings(raw, file) {
+  try {
+    return JSON.parse(raw)
+  } catch (error) {
+    throw new Error(
+      `${file}: JSON inválido (${error.message}) — o arquivo não foi tocado; corrija-o manualmente antes de instalar hooks. Esperado um objeto JSON, recebido: ${raw.slice(0, 80)}`,
+    )
+  }
+}
+
+/**
+ * Escreve num arquivo temporário no mesmo diretório e só então o renomeia por
+ * cima do destino, para que um crash a meio da escrita nunca deixe o
+ * settings.json truncado — o rename é a única operação que troca o conteúdo
+ * visível, e é atômica no mesmo volume (POSIX e Windows).
+ * @param {string} file
+ * @param {string} content
+ * @returns {Promise<void>}
+ */
+async function writeAtomic(file, content) {
+  const tmp = path.join(path.dirname(file), `.${path.basename(file)}.${randomBytes(4).toString('hex')}.tmp`)
+  await writeFile(tmp, content)
+  await rename(tmp, file)
+}
+
+/**
+ * @param {import('./library.js').Artifact} artifact
+ * @returns {Promise<{ hooks: Record<string, object[]> }>}
+ */
+async function readFragment(artifact) {
+  const raw = await readFile(path.join(artifact.sourcePath, 'hook.json'), 'utf8')
+  const fragment = JSON.parse(raw)
+  if (!fragment.hooks) {
+    throw new Error(`hook "${artifact.name}": hook.json precisa ter a chave "hooks", recebido ${Object.keys(fragment)}`)
+  }
+  return fragment
+}
+
+/** @param {string} file @returns {Promise<string|null>} */
+async function readFileOrNull(file) {
+  try {
+    return await readFile(file, 'utf8')
+  } catch (error) {
+    if (error.code === 'ENOENT') return null
+    throw error
+  }
+}
