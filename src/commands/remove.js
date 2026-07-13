@@ -1,5 +1,6 @@
 import { readLibrary, findArtifact } from '../library.js'
 import { storePaths } from '../paths.js'
+import { detectHarnesses } from '../harness.js'
 import { uninstallArtifact, syncGeminiContext } from '../install.js'
 import { previewHook, uninstallHook } from '../hooks.js'
 
@@ -27,7 +28,11 @@ export async function runRemove(homeDir, args, deps) {
     deps.log(removed > 0 ? `✓ ${name} removido de ${removed} harness(es)` : `· ${name} não estava instalado`)
   }
 
-  await syncGeminiContextIfPresent(homeDir)
+  // Só reescreve o GEMINI.md se o usuário já tem Gemini. syncGeminiContext faz
+  // `mkdir` do ~/.gemini, e como detectHarnesses É "o diretório raiz existe",
+  // um `remove` numa máquina sem Gemini criava o diretório e fazia o Gemini
+  // passar a ser detectado como alvo para sempre.
+  if ((await detectHarnesses(homeDir)).includes('gemini')) await syncGeminiContextIfPresent(homeDir)
   return 0
 }
 

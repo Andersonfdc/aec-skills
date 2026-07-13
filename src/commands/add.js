@@ -36,6 +36,13 @@ export async function runAdd(homeDir, args, deps) {
 
   for (const artifact of wanted) {
     if (artifact.kind === 'hook') {
+      // Hook só existe no Claude Code — mas escrever no settings.json cria o
+      // ~/.claude. Com `--harness` excluindo claude, o usuário disse que não o
+      // quer como alvo; criar o diretório aqui o inventaria.
+      if (!harnesses.includes('claude')) {
+        deps.log(`· ${artifact.name} (hook) → claude não está entre os harnesses alvo`)
+        continue
+      }
       if (!(await confirmHook(homeDir, artifact, deps))) continue
       await installHook(homeDir, artifact, sha)
       deps.log(`✓ ${artifact.name} (hook) instalado no claude`)

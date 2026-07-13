@@ -1,6 +1,6 @@
 import { test } from 'node:test'
 import assert from 'node:assert/strict'
-import { mkdir, writeFile, access, readFile } from 'node:fs/promises'
+import { mkdir, writeFile, access, readFile, rm } from 'node:fs/promises'
 import path from 'node:path'
 import { runList } from '../src/commands/list.js'
 import { runAdd } from '../src/commands/add.js'
@@ -262,6 +262,33 @@ test('runAdd de hook recusado (confirm: false) não toca settings.json', async (
   assert.equal(code, 0)
   await assert.rejects(() => access(path.join(home, '.claude', 'settings.json')))
   assert.match(output.join('\n'), /pulado: check-updates/)
+})
+
+test('runRemove não cria ~/.gemini numa máquina que não usa Gemini', async (t) => {
+  const home = await tmpHome(t)
+  await seed(home)
+  await runAdd(home, { _: ['code-review'] }, { log: () => {}, gitStore: new FakeGitStore() })
+
+  await runRemove(home, { _: ['code-review'] }, { log: () => {} })
+
+  await assert.rejects(() => access(path.join(home, '.gemini')))
+})
+
+test('runAdd --harness=gemini não cria ~/.claude para instalar um hook', async (t) => {
+  const home = await tmpHome(t)
+  await seedHook(home)
+  await rm(path.join(home, '.claude'), { recursive: true, force: true })
+  const output = []
+
+  const code = await runAdd(
+    home,
+    { _: ['check-updates'], harness: 'gemini' },
+    { log: (l) => output.push(l), gitStore: new FakeGitStore(), confirm: async () => true },
+  )
+
+  assert.equal(code, 0)
+  await assert.rejects(() => access(path.join(home, '.claude')))
+  assert.match(output.join('\n'), /claude não está entre os harnesses alvo/)
 })
 
 test('runRemove de hook recusado (confirm: false) não toca settings.json', async (t) => {
