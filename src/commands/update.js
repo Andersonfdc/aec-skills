@@ -42,11 +42,24 @@ export async function runUpdate(homeDir, args, deps) {
       deps.log(`· ${name} não existe mais na biblioteca — rode \`aec-skills remove ${name}\``)
       continue
     }
-    await installArtifact(homeDir, artifact, harnesses, sha)
-    deps.log(`✓ ${name} atualizado`)
+    const result = await installArtifact(homeDir, artifact, harnesses, sha)
+    reportUpdate(name, result, deps.log)
   }
 
   if (harnesses.includes('gemini')) await syncGeminiContext(homeDir)
   deps.log(`\nstore em ${sha}`)
   return 0
+}
+
+/**
+ * Relata o resultado real. Um artefato pulado em TODOS os harnesses não foi
+ * atualizado — dizer "✓ atualizado" ali esconderia exatamente o destino que o
+ * CLI se recusou a tocar.
+ * @param {string} name
+ * @param {import('../install.js').InstallResult} result
+ * @param {(line: string) => void} log
+ */
+function reportUpdate(name, result, log) {
+  if (result.installed.length > 0) log(`✓ ${name} atualizado`)
+  for (const skip of result.skipped) log(`· ${name} → ${skip.harness}: ${skip.reason}`)
 }

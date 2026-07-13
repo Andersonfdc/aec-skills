@@ -17,6 +17,13 @@ import { storePaths } from './paths.js'
  * com motivo; destino ocupado pelo usuário é pulado sem sobrescrever.
  * Hooks não passam por aqui — ver `src/hooks.js`.
  *
+ * Destino já registrado em `installed.json` é NOSSO: removemos antes de religar,
+ * em vez de recusá-lo. Sem isso, uma instalação em modo `copy` (o caso normal no
+ * Windows: symlink de arquivo dá EPERM, então agents e commands sempre caem para
+ * cópia) nunca mais poderia ser atualizada — `linkPath` veria um arquivo comum no
+ * destino e levantaria `DestinationOccupiedError` sobre um arquivo criado por nós.
+ * Destino SEM entrada em `installed.json` continua sendo do usuário e é recusado.
+ *
  * @param {string} homeDir
  * @param {import('./library.js').Artifact} artifact
  * @param {import('./harness.js').HarnessId[]} harnesses
@@ -25,6 +32,7 @@ import { storePaths } from './paths.js'
  */
 export async function installArtifact(homeDir, artifact, harnesses, sha) {
   const result = { installed: [], skipped: [] }
+  const owned = await readInstalled(homeDir)
 
   for (const harness of harnesses) {
     const target = resolveTarget(homeDir, artifact, harness)
@@ -32,6 +40,9 @@ export async function installArtifact(homeDir, artifact, harnesses, sha) {
       result.skipped.push({ harness, reason: `${harness} não suporta ${artifact.kind}` })
       continue
     }
+    const previous = owned.find((e) => e.dest === target.dest)
+    if (previous) await unlinkPath(target.dest, target.source, previous.mode)
+
     try {
       const mode = await linkPath(target.source, target.dest)
       result.installed.push({ name: artifact.name, kind: artifact.kind, harness, dest: target.dest, mode, sha })

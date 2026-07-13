@@ -91,6 +91,52 @@ test('installArtifact pula destino ocupado pelo usuário, sem sobrescrever', asy
   assert.equal(await readFile(path.join(dest, 'SKILL.md'), 'utf8'), 'do usuário')
 })
 
+test('installArtifact reinstalado sobre a própria instalação anterior religa em vez de pular', async (t) => {
+  const home = await tmpHome(t)
+  const { skill } = await seedStore(home)
+  await installArtifact(home, skill, ['claude'], 'abc1234')
+
+  const result = await installArtifact(home, skill, ['claude'], 'def5678')
+
+  assert.equal(result.skipped.length, 0)
+  assert.equal(result.installed.length, 1)
+  assert.equal((await readInstalled(home))[0].sha, 'def5678')
+})
+
+test('installArtifact substitui uma cópia registrada como nossa (realidade do Windows)', async (t) => {
+  const home = await tmpHome(t)
+  const { skill } = await seedStore(home)
+
+  // No Windows, symlink de arquivo dá EPERM e linkPath cai para `cp` — o destino
+  // vira um diretório/arquivo comum, registrado com mode 'copy'.
+  const dest = path.join(HARNESSES.claude.skillsDir(home), 'code-review')
+  await mkdir(dest, { recursive: true })
+  await writeFile(path.join(dest, 'SKILL.md'), 'conteúdo velho, congelado na instalação')
+  await writeInstalled(home, [
+    { name: 'code-review', kind: 'skill', harness: 'claude', dest, mode: 'copy', sha: 'abc1234' },
+  ])
+
+  const result = await installArtifact(home, skill, ['claude'], 'def5678')
+
+  assert.equal(result.skipped.length, 0)
+  assert.equal(result.installed.length, 1)
+  assert.match(await readFile(path.join(dest, 'SKILL.md'), 'utf8'), /name: code-review/)
+})
+
+test('installArtifact continua recusando destino do usuário ausente de installed.json', async (t) => {
+  const home = await tmpHome(t)
+  const { skill } = await seedStore(home)
+  const dest = path.join(HARNESSES.claude.skillsDir(home), 'code-review')
+  await mkdir(dest, { recursive: true })
+  await writeFile(path.join(dest, 'SKILL.md'), 'do usuário')
+
+  const result = await installArtifact(home, skill, ['claude'], 'abc1234')
+
+  assert.equal(result.installed.length, 0)
+  assert.match(result.skipped[0].reason, /já existe/)
+  assert.equal(await readFile(path.join(dest, 'SKILL.md'), 'utf8'), 'do usuário')
+})
+
 test('uninstallArtifact remove os destinos e limpa installed.json', async (t) => {
   const home = await tmpHome(t)
   const { skill } = await seedStore(home)

@@ -9,7 +9,7 @@ import { runUpdate } from '../src/commands/update.js'
 import { runUninstall } from '../src/commands/uninstall.js'
 import { runLogin } from '../src/commands/login.js'
 import { storePaths } from '../src/paths.js'
-import { readInstalled, readConfig } from '../src/state.js'
+import { readInstalled, writeInstalled, readConfig } from '../src/state.js'
 import { FakeGitStore } from './helpers/fake-git-store.js'
 import { tmpHome } from './helpers/tmp-home.js'
 
@@ -137,6 +137,26 @@ test('runUpdate --force aplica mesmo com edição local', async (t) => {
   await runUpdate(home, { force: true }, { log: () => {}, gitStore: git })
 
   assert.ok(git.calls.includes('pull'))
+})
+
+test('runUpdate não diz "atualizado" para artefato pulado em todos os harnesses', async (t) => {
+  const home = await tmpHome(t)
+  await seed(home)
+  // Instalado (registrado no codex, que não existe nesta máquina) mas com o destino
+  // do claude ocupado por um diretório do usuário — nada pode ser religado ali.
+  await writeInstalled(home, [{
+    name: 'code-review', kind: 'skill', harness: 'codex',
+    dest: path.join(home, '.codex', 'skills', 'code-review'), mode: 'link', sha: 'aaaa111',
+  }])
+  const dest = path.join(home, '.claude', 'skills', 'code-review')
+  await mkdir(dest, { recursive: true })
+  await writeFile(path.join(dest, 'SKILL.md'), 'do usuário')
+  const output = []
+
+  await runUpdate(home, {}, { log: (l) => output.push(l), gitStore: new FakeGitStore() })
+
+  assert.ok(!output.join('\n').includes('✓ code-review atualizado'))
+  assert.match(output.join('\n'), /code-review → claude: já existe/)
 })
 
 test('runUninstall remove os links e o store', async (t) => {
