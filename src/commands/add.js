@@ -1,4 +1,5 @@
-import { readLibrary } from '../library.js'
+import { readLibrary, findArtifact } from '../library.js'
+import { expandRequires, publicArtifacts } from '../deps.js'
 import { storePaths } from '../paths.js'
 import { resolveHarnesses } from '../harness.js'
 import { buildDerivatives } from '../build.js'
@@ -19,7 +20,13 @@ export async function runAdd(homeDir, args, deps) {
     return 1
   }
 
-  const wanted = args.all ? artifacts : pickByName(artifacts, args._ ?? [], deps.log)
+  const chosen = args.all ? publicArtifacts(artifacts).map((a) => a.name) : (args._ ?? [])
+  if (!args.all && chosen.length === 0) {
+    deps.log('informe ao menos um nome, ou use --all')
+    return 1
+  }
+
+  const wanted = resolveWanted(artifacts, chosen, deps.log)
   if (wanted === null) return 1
 
   const invalid = wanted.filter((a) => a.errors.length > 0)
@@ -63,26 +70,34 @@ export async function runAdd(homeDir, args, deps) {
 }
 
 /**
+ * Resolve o que o usuário escolheu para o que precisa ser instalado de fato:
+ * cada artefato arrasta o que declara em `requires`. Escolher a `white-box-qa`
+ * instala os subagentes que ela despacha — ela não funciona sem eles, e obrigar
+ * o usuário a marcá-los um a um seria vazar a nossa estrutura interna para ele.
  * @param {import('../library.js').Artifact[]} artifacts
  * @param {string[]} names
  * @param {(line: string) => void} log
  * @returns {import('../library.js').Artifact[]|null} null quando algum nome não existe
  */
-function pickByName(artifacts, names, log) {
-  if (names.length === 0) {
-    log('informe ao menos um nome, ou use --all')
+function resolveWanted(artifacts, names, log) {
+  const unknown = names.filter((name) => !findArtifact(artifacts, name))
+  if (unknown.length > 0) {
+    for (const name of unknown) log(`não encontrado: ${name}`)
     return null
   }
-  const picked = []
-  for (const name of names) {
-    const artifact = artifacts.find((a) => a.name === name)
-    if (!artifact) {
-      log(`não encontrado: ${name}`)
-      return null
-    }
-    picked.push(artifact)
+
+  const { names: expanded, missing } = expandRequires(artifacts, names)
+  if (missing.length > 0) {
+    // A biblioteca está inconsistente: alguém publicou um `requires` para um
+    // artefato que não existe. Instalar pela metade seria pior que recusar.
+    log(`biblioteca inconsistente — dependência inexistente: ${missing.join(', ')}`)
+    return null
   }
-  return picked
+
+  const pulled = expanded.filter((name) => !names.includes(name))
+  if (pulled.length > 0) log(`· junto: ${pulled.join(', ')}`)
+
+  return expanded.map((name) => findArtifact(artifacts, name))
 }
 
 /**

@@ -1,6 +1,7 @@
 import { readLibrary } from '../library.js'
 import { storePaths } from '../paths.js'
 import { resolveHarnesses } from '../harness.js'
+import { publicArtifacts } from '../deps.js'
 import { selectFromMenu } from '../tui.js'
 import { BANNER } from '../banner.js'
 import { CLI_INVOCATION } from '../constants.js'
@@ -48,7 +49,10 @@ export async function runInstall(homeDir, args, deps) {
   }
 
   const select = deps.select ?? selectFromMenu
-  const items = artifacts.map((a) => ({
+  // O menu oferece produtos, não peças: os componentes que uma skill despacha
+  // vêm junto com ela no `add`. Listá-los seria pedir ao usuário para decidir
+  // sobre a nossa estrutura interna.
+  const items = publicArtifacts(artifacts).map((a) => ({
     name: a.name,
     kind: a.kind,
     description: a.attrs.description ?? '',

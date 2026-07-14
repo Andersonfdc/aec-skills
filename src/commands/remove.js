@@ -1,6 +1,8 @@
 import { readLibrary, findArtifact } from '../library.js'
+import { orphanedInternals } from '../deps.js'
 import { storePaths } from '../paths.js'
 import { detectHarnesses } from '../harness.js'
+import { readInstalled } from '../state.js'
 import { uninstallArtifact, syncGeminiContext } from '../install.js'
 import { previewHook, uninstallHook } from '../hooks.js'
 
@@ -28,12 +30,36 @@ export async function runRemove(homeDir, args, deps) {
     deps.log(removed > 0 ? `✓ ${name} removido de ${removed} harness(es)` : `· ${name} não estava instalado`)
   }
 
+  await removeOrphans(homeDir, artifacts, deps)
+
   // Só reescreve o GEMINI.md se o usuário já tem Gemini. syncGeminiContext faz
   // `mkdir` do ~/.gemini, e como detectHarnesses É "o diretório raiz existe",
   // um `remove` numa máquina sem Gemini criava o diretório e fazia o Gemini
   // passar a ser detectado como alvo para sempre.
   if ((await detectHarnesses(homeDir)).includes('gemini')) await syncGeminiContext(homeDir, artifacts)
   return 0
+}
+
+/**
+ * Varre os componentes que ficaram sem dono. Ao remover a `white-box-qa`, os
+ * subagentes que só existiam para ela ficariam instalados para sempre — o
+ * usuário nunca os escolheu, então não é dele a tarefa de lembrar de tirá-los.
+ *
+ * Um componente ainda exigido por outra coisa instalada permanece; um produto
+ * nunca é varrido, porque alguém o quis explicitamente.
+ * @param {string} homeDir
+ * @param {import('../library.js').Artifact[]} artifacts
+ * @param {{ log: (line: string) => void }} deps
+ * @returns {Promise<void>}
+ */
+async function removeOrphans(homeDir, artifacts, deps) {
+  const stillInstalled = [...new Set((await readInstalled(homeDir)).map((e) => e.name))]
+  const orphans = orphanedInternals(artifacts, stillInstalled)
+
+  for (const name of orphans) {
+    const removed = await uninstallArtifact(homeDir, name)
+    if (removed > 0) deps.log(`· ${name} removido junto — nada mais o exige`)
+  }
 }
 
 /**
