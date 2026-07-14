@@ -33,6 +33,8 @@ export async function runInstall(homeDir, args, deps) {
     deps.log('')
   }
 
+  await refreshStore(deps)
+
   const artifacts = await readLibrary(repo)
   if (artifacts.length === 0) {
     deps.log('a biblioteca não tem nenhum artefato')
@@ -66,4 +68,43 @@ export async function runInstall(homeDir, args, deps) {
   }
 
   return runAdd(homeDir, { _: chosen, harness: args.harness }, deps)
+}
+
+/**
+ * Pergunta ao remoto se a biblioteca andou, e oferece aplicar antes de listar.
+ *
+ * Sem isto o instalador desenha o menu a partir do store em disco e nunca
+ * descobre que existe skill nova — quem clonou ontem enxerga a biblioteca de
+ * ontem, para sempre, sem um aviso sequer. O `fetch` não muda nada; o `pull` só
+ * acontece com o "sim" do usuário, porque as skills instaladas são links para
+ * dentro do store e puxar altera o conteúdo delas na hora.
+ *
+ * Falha de rede não é fatal: instalar o que já está em disco continua valendo.
+ * @param {{ log: (line: string) => void, gitStore: import('../git-store.js').GitStore, confirm?: (q: string) => Promise<boolean> }} deps
+ * @returns {Promise<void>}
+ */
+async function refreshStore(deps) {
+  try {
+    await deps.gitStore.fetch()
+    const [local, remote] = await Promise.all([
+      deps.gitStore.head(),
+      deps.gitStore.remoteHead(),
+    ])
+    if (local === remote) return
+
+    deps.log('  A biblioteca tem atualizações que você ainda não tem.')
+    const confirm = deps.confirm ?? (async () => false)
+    if (!(await confirm('  atualizar antes de instalar? [y/N] '))) {
+      deps.log('  seguindo com a versão local — rode `update` quando quiser aplicar')
+      deps.log('')
+      return
+    }
+    await deps.gitStore.pull()
+    deps.log('  ✓ biblioteca atualizada')
+    deps.log('')
+  } catch (error) {
+    deps.log(`  não foi possível consultar o remoto (${error.message})`)
+    deps.log('  seguindo com a biblioteca que está em disco')
+    deps.log('')
+  }
 }

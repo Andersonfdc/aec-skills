@@ -54,6 +54,87 @@ test('num pipe, o install recusa em vez de abrir um menu que ninguém pode usar'
   assert.match(lines.join('\n'), /add --all/)
 })
 
+// Regressão: o instalador lia o store local sem nunca perguntar ao remoto se havia
+// novidade. Quem instalou ontem via a biblioteca de ontem, para sempre, sem aviso.
+test('store atrasado: o install avisa e oferece atualizar antes do menu', async (t) => {
+  const home = await tmpHome(t)
+  await seed(home)
+  const lines = []
+  const gitStore = new FakeGitStore({ head: 'antigo1', remoteHead: 'novo999' })
+
+  await runInstall(home, {}, {
+    log: (line) => lines.push(line),
+    gitStore,
+    env: {},
+    isTTY: true,
+    confirm: async () => true,
+    select: async () => [],
+  })
+
+  assert.deepEqual(gitStore.calls, ['fetch', 'pull'], 'tem que consultar o remoto e aplicar')
+  assert.match(lines.join('\n'), /atualizações que você ainda não tem/i)
+  assert.match(lines.join('\n'), /biblioteca atualizada/i)
+})
+
+test('store atrasado + recusa: nada é puxado, e o menu abre mesmo assim', async (t) => {
+  const home = await tmpHome(t)
+  await seed(home)
+  const gitStore = new FakeGitStore({ head: 'antigo1', remoteHead: 'novo999' })
+  let menuOpened = false
+
+  await runInstall(home, {}, {
+    log: () => {},
+    gitStore,
+    env: {},
+    isTTY: true,
+    confirm: async () => false,
+    select: async () => { menuOpened = true; return [] },
+  })
+
+  assert.deepEqual(gitStore.calls, ['fetch'], 'recusou: não puxa')
+  assert.equal(menuOpened, true, 'ainda assim dá para instalar o que já está no store')
+})
+
+test('store em dia: não pergunta nada, vai direto ao menu', async (t) => {
+  const home = await tmpHome(t)
+  await seed(home)
+  const gitStore = new FakeGitStore({ head: 'igual11', remoteHead: 'igual11' })
+  let asked = false
+
+  await runInstall(home, {}, {
+    log: () => {},
+    gitStore,
+    env: {},
+    isTTY: true,
+    confirm: async () => { asked = true; return true },
+    select: async () => [],
+  })
+
+  assert.equal(asked, false)
+  assert.deepEqual(gitStore.calls, ['fetch'])
+})
+
+test('sem rede: o install avisa e segue com o store local, não morre', async (t) => {
+  const home = await tmpHome(t)
+  await seed(home)
+  const lines = []
+  const gitStore = new FakeGitStore()
+  gitStore.fetch = async () => { throw new Error('could not resolve host github.com') }
+  let menuOpened = false
+
+  const code = await runInstall(home, {}, {
+    log: (line) => lines.push(line),
+    gitStore,
+    env: {},
+    isTTY: true,
+    select: async () => { menuOpened = true; return [] },
+  })
+
+  assert.equal(code, 0)
+  assert.equal(menuOpened, true, 'offline ainda instala o que está em disco')
+  assert.match(lines.join('\n'), /não foi possível|offline|sem rede/i)
+})
+
 test('install imprime o banner', async (t) => {
   const home = await tmpHome(t)
   await seed(home)

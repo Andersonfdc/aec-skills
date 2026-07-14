@@ -15,6 +15,7 @@ import { runStatus } from './commands/status.js'
 import { runUpdate } from './commands/update.js'
 import { runUninstall } from './commands/uninstall.js'
 import { runInstall } from './commands/install.js'
+import { isLegacyRemote, migrateLegacyStore } from './migrate.js'
 
 const HELP = `aec-skills <comando> [opções]
 
@@ -51,6 +52,9 @@ const COMMANDS = {
  */
 export async function runCli(argv, io = {}) {
   const log = io.log ?? console.log
+  // Injetável para que o teste alcance os caminhos que hoje só o stdin real abre
+  // (migração do store legado, confirmação de hook, atualização no instalador).
+  const confirm = io.confirm ?? askYesNo
 
   if (argv.includes('--version')) {
     log(await readVersion())
@@ -74,11 +78,20 @@ export async function runCli(argv, io = {}) {
 
   const homeDir = io.homeDir ?? homedir()
   const args = parseCommandArgs(argv.slice(1))
+
+  // Repara, antes de qualquer comando, uma máquina cujo config.json ainda aponta
+  // para o repositório de quando o CLI e a biblioteca eram um só. Sem isto ela
+  // fica presa mostrando as skills velhas, e um `update` a deixaria vazia.
+  // Num pipe não há como confirmar: a migração só explica e não apaga nada.
+  if (isLegacyRemote((await readConfig(homeDir)).remoteUrl)) {
+    await migrateLegacyStore(homeDir, { log, confirm: interactive ? confirm : undefined })
+  }
+
   // A GitStore precisa da URL confiável lida do NOSSO config.json, nunca de
   // `git remote get-url origin` — ver o contrato de segurança em git-store.js.
   const config = await readConfig(homeDir)
   const gitStore = new GitStore(storePaths(homeDir).repo, config.token ?? null, config.remoteUrl ?? null)
-  const deps = { log, gitStore, env: process.env, confirm: askYesNo, isTTY: interactive }
+  const deps = { log, gitStore, env: process.env, confirm, isTTY: interactive }
 
   try {
     // runStatus tem assinatura (homeDir, gitStore, io); os demais (homeDir, args, deps).

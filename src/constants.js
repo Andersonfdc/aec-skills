@@ -15,3 +15,13 @@ export const CLI_INVOCATION = 'npx github:Andersonfdc/aec-skills'
  * e o CLI é a parte que não guarda segredo nenhum.
  */
 export const DEFAULT_REMOTE_URL = 'https://github.com/Andersonfdc/aec-skills-library.git'
+
+/**
+ * Endereços em que a biblioteca já morou. Um `config.json` que aponte para um
+ * deles é de antes da separação CLI/biblioteca, e precisa ser reparado — ver
+ * `migrate.js`. A URL gravada vence a padrão, então sem esta lista a máquina
+ * ficaria presa para sempre numa biblioteca que não existe mais.
+ */
+export const LEGACY_REMOTE_URLS = [
+  'https://github.com/Andersonfdc/aec-skills.git',
+]
